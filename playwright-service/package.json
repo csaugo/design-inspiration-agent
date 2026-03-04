@@ -1,0 +1,17 @@
+{
+  "name": "dia-playwright-service",
+  "version": "1.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node src/worker.js",
+    "dev": "node --watch src/worker.js"
+  },
+  "dependencies": {
+    "playwright": "1.44.0",
+    "bull": "^4.16.5",
+    "dotenv": "^17.3.1"
+  }
+}
