@@ -94,8 +94,9 @@ export async function refineBrief(parentJob, feedback) {
 
   console.log(`[refine-skill] Carregando ${selected.length} imagem(ns) para análise Vision...`);
 
-  // Carregar imagens como base64
+  // Carregar imagens como base64, rastreando quais resultIds obtiveram imagem
   const imageBlocks = [];
+  const resultIdsComImagem = new Set();
   for (const resultId of selected) {
     const meta = metaMap[resultId];
     const fallbackUrl = meta?.imageUrl ?? null;
@@ -109,16 +110,42 @@ export async function refineBrief(parentJob, feedback) {
           data: img.data,
         },
       });
+      resultIdsComImagem.add(resultId);
     }
   }
 
   console.log(`[refine-skill] ${imageBlocks.length} imagem(ns) carregada(s) para análise.`);
 
+  // Nível 3: fallback textual para anchors sem imagem
+  const anchorsSemImagem = selected
+    .filter((resultId) => !resultIdsComImagem.has(resultId))
+    .map((resultId) => metaMap[resultId])
+    .filter(Boolean);
+
+  let textualFallback = '';
+  if (anchorsSemImagem.length > 0) {
+    if (anchorsSemImagem.length === selected.length) {
+      console.warn('[refine-skill] Refinando apenas por metadados — nenhuma imagem disponível.');
+    } else {
+      console.warn(
+        `[refine-skill] ${anchorsSemImagem.length} anchor(s) sem imagem — usando metadados como fallback.`
+      );
+    }
+    textualFallback =
+      '\n\nReferências adicionais (sem imagem disponível):\n' +
+      anchorsSemImagem
+        .map(
+          (m) =>
+            `- resultId: ${m.resultId} (fonte: ${m.source}, score: ${m.score_total ?? 'N/A'})`
+        )
+        .join('\n');
+  }
+
   // Montar o content do usuário: texto + blocos de imagem
   const userContent = [
     {
       type: 'text',
-      text: `Brief original do projeto:\n${JSON.stringify(parentJob.brief, null, 2)}\n\nFeedback do designer sobre as referências atuais:\n"${feedback}"\n\nAbaixo estão as imagens selecionadas pelo designer como referência visual. Com base nelas e no feedback, gere um brief refinado em JSON com exatamente este formato:\n{\n  "component": string (igual ao original),\n  "context": string (igual ao original),\n  "style": string (refinado com base nas imagens e no feedback),\n  "keywords": array de strings (expandido — adicione termos visuais específicos que você observou nas imagens),\n  "anti_preferences": array de strings (o que evitar — inferido do feedback),\n  "refinement_notes": string (1 parágrafo explicando o que mudou e por quê),\n  "visual_anchors": array de strings com descrições de 1 frase de cada imagem selecionada\n}`,
+      text: `Brief original do projeto:\n${JSON.stringify(parentJob.brief, null, 2)}\n\nFeedback do designer sobre as referências atuais:\n"${feedback}"${textualFallback}\n\nAbaixo estão as imagens selecionadas pelo designer como referência visual. Com base nelas e no feedback, gere um brief refinado em JSON com exatamente este formato:\n{\n  "component": string (igual ao original),\n  "context": string (igual ao original),\n  "style": string (refinado com base nas imagens e no feedback),\n  "keywords": array de strings (expandido — adicione termos visuais específicos que você observou nas imagens),\n  "anti_preferences": array de strings (o que evitar — inferido do feedback),\n  "refinement_notes": string (1 parágrafo explicando o que mudou e por quê),\n  "visual_anchors": array de strings com descrições de 1 frase de cada imagem selecionada\n}`,
     },
     ...imageBlocks,
   ];

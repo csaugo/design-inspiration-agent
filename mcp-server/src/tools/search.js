@@ -71,12 +71,24 @@ export async function refineSearch(jobId, feedback) {
     await redis.disconnect();
   }
 
-  // 2. Validar campo selected
-  if (!parentJob.selected || parentJob.selected.length === 0) {
-    throw new Error(
-      'Selecione referências no moodboard antes de refinar. Abra o board_url e clique em "Exportar para Cursor".'
+  // 2. Resolver seleção: usa selected salvo no Redis ou fallback top-3 por score
+  let selectedIds = parentJob.selected ?? [];
+  if (selectedIds.length === 0) {
+    console.warn(
+      `[Refine] Nenhuma seleção encontrada para job ${jobId}. Usando top-3 por score como proxy.`
     );
+    const resultsMeta = parentJob.results_meta ?? [];
+    const top3 = [...resultsMeta]
+      .sort((a, b) => (b.score_total ?? 0) - (a.score_total ?? 0))
+      .slice(0, 3);
+    selectedIds = top3.map((r) => r.resultId);
+    if (selectedIds.length === 0) {
+      throw new Error(
+        'Job pai não possui resultados. Execute get_results primeiro e aguarde o status "ready".'
+      );
+    }
   }
+  parentJob.selected = selectedIds;
 
   // 3. Gerar brief refinado via Claude Vision
   const briefRefinado = await refineBrief(parentJob, feedback);
