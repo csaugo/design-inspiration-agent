@@ -93,30 +93,50 @@ function calcScore(site, brief) {
  * @param {number} [options.maxTier=2] - Máximo tier a incluir: 1=tier1, 2=+tier2_simple, 3=+tier2_pw, 4=+tier3
  * @param {number} [options.limit=5] - Máximo de sites retornados (excluindo Unsplash)
  * @param {boolean} [options.includeUnsplash=true] - Adicionar Unsplash virtual sempre no topo
+ * @param {number} [options.minPlaywright=0] - Mínimo de sites tier2_playwright garantidos (quando maxTier>=3)
  * @returns {Array<{id, nome, tier, score, url_busca, seletor_resultados, extrai, api_info?}>}
  */
 export function selectSites(brief = {}, options = {}) {
-  const { maxTier = 2, limit = 5, includeUnsplash = true } = options;
+  const { maxTier = 2, limit = 5, includeUnsplash = true, minPlaywright = 0 } = options;
 
   const allowedTiers = MAX_TIER_MAP[maxTier] ?? MAX_TIER_MAP[2];
   const data = loadSites();
 
   const allSites = allowedTiers.flatMap((tier) => data[tier] ?? []);
 
-  const scored = allSites
-    .map((site) => ({
-      id: site.id,
-      nome: site.nome,
-      tier: site.tier,
-      score: calcScore(site, brief),
-      url_base: site.url_base ?? null,
-      url_busca: site.url_busca ?? null,
-      seletor_resultados: site.seletor_resultados ?? null,
-      extrai: site.extrai ?? [],
-      ...(site.api_info ? { api_info: site.api_info } : {}),
-    }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit);
+  const mapped = allSites.map((site) => ({
+    id: site.id,
+    nome: site.nome,
+    tier: site.tier,
+    score: calcScore(site, brief),
+    url_base: site.url_base ?? null,
+    url_busca: site.url_busca ?? null,
+    seletor_resultados: site.seletor_resultados ?? null,
+    extrai: site.extrai ?? [],
+    ...(site.api_info ? { api_info: site.api_info } : {}),
+  }));
+
+  const sorted = mapped.slice().sort((a, b) => b.score - a.score);
+
+  // Garante mínimo de sites playwright quando solicitado
+  const effectiveMinPw = maxTier >= 3 ? Math.max(minPlaywright, 2) : 0;
+  if (effectiveMinPw > 0) {
+    const playwrightPool = sorted.filter((s) => s.tier === 'tier2_playwright');
+    const simplePool = sorted.filter((s) => s.tier !== 'tier2_playwright');
+
+    const pwSelected = playwrightPool.slice(0, Math.min(effectiveMinPw, playwrightPool.length));
+    const pwIds = new Set(pwSelected.map((s) => s.id));
+    const remaining = simplePool.filter((s) => !pwIds.has(s.id));
+    const simpleSelected = remaining.slice(0, limit - pwSelected.length);
+
+    const combined = [...pwSelected, ...simpleSelected]
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
+
+    return includeUnsplash ? [UNSPLASH_VIRTUAL, ...combined] : combined;
+  }
+
+  const scored = sorted.slice(0, limit);
 
   if (includeUnsplash) {
     return [UNSPLASH_VIRTUAL, ...scored];

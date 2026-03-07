@@ -77,6 +77,7 @@ queue.process(async (job) => {
       maxTier: 3,
       limit: 5,
       includeUnsplash: true,
+      minPlaywright: 2,
     });
 
     console.log(
