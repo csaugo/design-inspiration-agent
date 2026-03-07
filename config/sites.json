@@ -1,0 +1,714 @@
+{
+  "_meta": {
+    "total_active": 50,
+    "total_with_disabled": 57,
+    "generated_at": "2026-03-07",
+    "tiers": {
+      "tier1": 6,
+      "tier2_simple": 26,
+      "tier2_playwright": 11,
+      "tier3": 7,
+      "disabled": 7
+    }
+  },
+
+  "tier1": [
+    {
+      "id": "behance",
+      "nome": "Behance",
+      "tier": "tier1",
+      "tipo": "api_publica",
+      "url_base": "https://www.behance.net",
+      "url_busca": null,
+      "seletor_resultados": null,
+      "extrai": [],
+      "categorias": ["ui", "ux", "branding", "motion", "illustration", "web", "app"],
+      "tags": ["portfolio", "creative", "design", "adobe"],
+      "api_info": {
+        "endpoint": "https://api.behance.net/v2/projects",
+        "auth": "api_key",
+        "env_var": "BEHANCE_API_KEY",
+        "docs": "https://www.behance.net/dev"
+      }
+    },
+    {
+      "id": "dribbble",
+      "nome": "Dribbble",
+      "tier": "tier1",
+      "tipo": "api_publica",
+      "url_base": "https://dribbble.com",
+      "url_busca": null,
+      "seletor_resultados": null,
+      "extrai": [],
+      "categorias": ["ui", "ux", "animation", "branding", "illustration", "mobile", "web"],
+      "tags": ["shots", "design", "inspiration", "ui-design"],
+      "api_info": {
+        "endpoint": "https://api.dribbble.com/v2/shots",
+        "auth": "oauth2",
+        "env_var": "DRIBBBLE_ACCESS_TOKEN",
+        "docs": "https://developer.dribbble.com"
+      }
+    },
+    {
+      "id": "flaticon",
+      "nome": "Flaticon",
+      "tier": "tier1",
+      "tipo": "api_publica",
+      "url_base": "https://www.flaticon.com",
+      "url_busca": null,
+      "seletor_resultados": null,
+      "extrai": [],
+      "categorias": ["icons", "illustration", "stickers"],
+      "tags": ["icons", "flat", "svg", "png"],
+      "api_info": {
+        "endpoint": "https://api.flaticon.com/v3/search/icons",
+        "auth": "api_key",
+        "env_var": "FLATICON_API_KEY",
+        "docs": "https://api.flaticon.com"
+      }
+    },
+    {
+      "id": "icons8",
+      "nome": "Icons8",
+      "tier": "tier1",
+      "tipo": "api_publica",
+      "url_base": "https://icons8.com",
+      "url_busca": null,
+      "seletor_resultados": null,
+      "extrai": [],
+      "categorias": ["icons", "photos", "illustration", "music"],
+      "tags": ["icons", "free", "svg", "png", "photos"],
+      "api_info": {
+        "endpoint": "https://api.icons8.com/api/iconsets/v5/search",
+        "auth": "api_key",
+        "env_var": "ICONS8_API_KEY",
+        "docs": "https://icons8.com/api"
+      }
+    },
+    {
+      "id": "lordicon",
+      "nome": "Lordicon",
+      "tier": "tier1",
+      "tipo": "api_publica",
+      "url_base": "https://lordicon.com",
+      "url_busca": null,
+      "seletor_resultados": null,
+      "extrai": [],
+      "categorias": ["icons", "animation", "lottie"],
+      "tags": ["animated-icons", "lottie", "json", "web-animation"],
+      "api_info": {
+        "endpoint": "https://api.lordicon.com/icons",
+        "auth": "api_key",
+        "env_var": "LORDICON_API_KEY",
+        "docs": "https://lordicon.com/api"
+      }
+    },
+    {
+      "id": "streamlinehq",
+      "nome": "Streamline",
+      "tier": "tier1",
+      "tipo": "api_publica",
+      "url_base": "https://www.streamlinehq.com",
+      "url_busca": null,
+      "seletor_resultados": null,
+      "extrai": [],
+      "categorias": ["icons", "illustration"],
+      "tags": ["icons", "vector", "svg", "linear"],
+      "api_info": {
+        "endpoint": "https://api.streamlinehq.com/icons",
+        "auth": "api_key",
+        "env_var": "STREAMLINE_API_KEY",
+        "docs": "https://docs.streamlinehq.com"
+      }
+    }
+  ],
+
+  "tier2_simple": [
+    {
+      "id": "collectui",
+      "nome": "Collect UI",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://collectui.com",
+      "url_busca": "https://collectui.com/designs/{query}",
+      "seletor_resultados": ".item-image",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["ui", "components", "web", "mobile", "dashboard"],
+      "tags": ["ui-components", "design-ui", "interface", "web-design"]
+    },
+    {
+      "id": "uigarage",
+      "nome": "UI Garage",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://uigarage.net",
+      "url_busca": "https://uigarage.net/?s={query}",
+      "seletor_resultados": ".post-thumbnail",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["ui", "mobile", "web", "components"],
+      "tags": ["ui-inspiration", "mobile-ui", "web-ui", "interface"]
+    },
+    {
+      "id": "screenlane",
+      "nome": "Screenlane",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://screenlane.com",
+      "url_busca": "https://screenlane.com/?s={query}",
+      "seletor_resultados": ".post",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["mobile", "ui", "onboarding", "splash", "components"],
+      "tags": ["mobile-screens", "ios", "android", "app-design"]
+    },
+    {
+      "id": "footerdesign",
+      "nome": "Footer Design",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://www.footer.design",
+      "url_busca": "https://www.footer.design/tag/{query}/",
+      "seletor_resultados": ".w-dyn-item",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["footer", "web", "ui", "components"],
+      "tags": ["footer", "web-design", "layout", "bottom"]
+    },
+    {
+      "id": "herodesigns",
+      "nome": "Hero Designs",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://www.hero.page",
+      "url_busca": "https://www.hero.page/explore/{query}",
+      "seletor_resultados": ".card-image",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["hero", "landing", "web", "components"],
+      "tags": ["hero-section", "landing-page", "header", "above-fold"]
+    },
+    {
+      "id": "nicely",
+      "nome": "Nicely Done",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://nicelydone.club",
+      "url_busca": "https://nicelydone.club/?s={query}",
+      "seletor_resultados": ".gallery-item",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["ui", "web", "saas", "dashboard"],
+      "tags": ["saas", "product-design", "ui-inspiration", "web-app"]
+    },
+    {
+      "id": "lapa",
+      "nome": "Lapa Ninja",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://www.lapa.ninja",
+      "url_busca": "https://www.lapa.ninja/?s={query}",
+      "seletor_resultados": ".card",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["landing", "web", "ui", "hero", "pricing"],
+      "tags": ["landing-page", "saas", "startup", "web-design"]
+    },
+    {
+      "id": "onepagelove",
+      "nome": "One Page Love",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://onepagelove.com",
+      "url_busca": "https://onepagelove.com/search?q={query}",
+      "seletor_resultados": ".template-item",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["landing", "single-page", "web", "portfolio"],
+      "tags": ["one-page", "landing", "html", "web-design"]
+    },
+    {
+      "id": "cssdesignawards",
+      "nome": "CSS Design Awards",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://www.cssdesignawards.com",
+      "url_busca": "https://www.cssdesignawards.com/search?q={query}",
+      "seletor_resultados": ".wmd-gallery-item",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["web", "creative", "animation", "ui"],
+      "tags": ["award-winning", "creative-web", "css", "design-awards"]
+    },
+    {
+      "id": "savee",
+      "nome": "Savee",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://savee.it",
+      "url_busca": "https://savee.it/explore/?query={query}",
+      "seletor_resultados": ".item__wrapper",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["ui", "branding", "illustration", "web", "typography"],
+      "tags": ["inspiration", "design-collection", "visual", "creative"]
+    },
+    {
+      "id": "godly",
+      "nome": "Godly Website",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://godly.website",
+      "url_busca": "https://godly.website/search?q={query}",
+      "seletor_resultados": ".project-image",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["web", "landing", "creative", "ui", "animation"],
+      "tags": ["award-winning", "web-design", "creative", "inspiration"]
+    },
+    {
+      "id": "designspiration",
+      "nome": "Designspiration",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://www.designspiration.com",
+      "url_busca": "https://www.designspiration.com/search/saves/?q={query}",
+      "seletor_resultados": ".gridItem",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["branding", "illustration", "typography", "ui", "print"],
+      "tags": ["design", "inspiration", "color", "visual"]
+    },
+    {
+      "id": "pttrns",
+      "nome": "Pttrns",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://www.pttrns.com",
+      "url_busca": "https://www.pttrns.com/?pcat=0&s={query}",
+      "seletor_resultados": ".pttrns-phone",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["mobile", "ui", "ios", "android"],
+      "tags": ["mobile-patterns", "ios", "android", "ux-patterns"]
+    },
+    {
+      "id": "mobbin_free",
+      "nome": "Mobbin (public)",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://mobbin.com",
+      "url_busca": "https://mobbin.com/browse/web/screens?filterBySearch={query}",
+      "seletor_resultados": "[class*='ScreenCard']",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["mobile", "web", "ui", "ux", "onboarding", "components"],
+      "tags": ["mobile-app", "ios", "android", "web-app", "ux-flow"]
+    },
+    {
+      "id": "pagecollective",
+      "nome": "Page Collective",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://pagecollective.com",
+      "url_busca": "https://pagecollective.com/?s={query}",
+      "seletor_resultados": ".entry-image",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["landing", "web", "hero", "pricing"],
+      "tags": ["landing-page", "web-design", "startup", "saas"]
+    },
+    {
+      "id": "dark_design",
+      "nome": "Dark Design",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://www.dark.design",
+      "url_busca": "https://www.dark.design/?s={query}",
+      "seletor_resultados": ".site-image",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["dark", "web", "landing", "ui"],
+      "tags": ["dark-mode", "dark-theme", "ui-dark", "web-design"]
+    },
+    {
+      "id": "commerce_cream",
+      "nome": "Commerce Cream",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://commercecream.com",
+      "url_busca": "https://commercecream.com/?s={query}",
+      "seletor_resultados": ".site-screenshot",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["ecommerce", "web", "product", "landing"],
+      "tags": ["ecommerce", "shopify", "woocommerce", "store-design"]
+    },
+    {
+      "id": "minimal_gallery",
+      "nome": "Minimal Gallery",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://minimal.gallery",
+      "url_busca": "https://minimal.gallery/?s={query}",
+      "seletor_resultados": ".gallery-item",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["minimal", "web", "landing", "ui", "typography"],
+      "tags": ["minimalism", "clean", "white-space", "typography"]
+    },
+    {
+      "id": "landingfolio",
+      "nome": "Landingfolio",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://www.landingfolio.com",
+      "url_busca": "https://www.landingfolio.com/?search={query}",
+      "seletor_resultados": ".design-screenshot",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["landing", "web", "hero", "pricing", "components"],
+      "tags": ["landing-page", "templates", "saas", "startup"]
+    },
+    {
+      "id": "uiverse",
+      "nome": "UIverse",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://uiverse.io",
+      "url_busca": "https://uiverse.io/elements?search={query}",
+      "seletor_resultados": ".element-item",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["components", "buttons", "cards", "forms", "ui"],
+      "tags": ["css-components", "html-elements", "interactive", "animations"]
+    },
+    {
+      "id": "sitesee",
+      "nome": "Sitesee",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://sitesee.co",
+      "url_busca": "https://sitesee.co/?s={query}",
+      "seletor_resultados": ".screenshot",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["web", "landing", "ui", "saas"],
+      "tags": ["websites", "web-design", "inspiration", "curated"]
+    },
+    {
+      "id": "httpster",
+      "nome": "Httpster",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://httpster.net",
+      "url_busca": "https://httpster.net/search/?q={query}",
+      "seletor_resultados": ".site-preview",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["web", "creative", "landing", "portfolio"],
+      "tags": ["web-design", "inspiration", "creative", "showcase"]
+    },
+    {
+      "id": "navbar_gallery",
+      "nome": "Navbar Gallery",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://www.navbar.gallery",
+      "url_busca": "https://www.navbar.gallery/?s={query}",
+      "seletor_resultados": ".gallery-thumb",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["navbar", "navigation", "web", "components"],
+      "tags": ["navigation", "header", "navbar", "menu"]
+    },
+    {
+      "id": "saaspo",
+      "nome": "SaaS Pages",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://saaspages.xyz",
+      "url_busca": "https://saaspages.xyz/sections?q={query}",
+      "seletor_resultados": ".section-preview",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["saas", "landing", "web", "pricing", "hero"],
+      "tags": ["saas", "product", "landing-page", "startup"]
+    },
+    {
+      "id": "awwwards_free",
+      "nome": "Awwwards (free list)",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://www.awwwards.com",
+      "url_busca": "https://www.awwwards.com/websites/search/?text={query}",
+      "seletor_resultados": ".grid-item",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["web", "creative", "ui", "animation", "landing"],
+      "tags": ["award-winning", "creative", "web-design", "best-of-web"]
+    },
+    {
+      "id": "ui_sources",
+      "nome": "UI Sources",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://www.uisources.com",
+      "url_busca": "https://www.uisources.com/search?q={query}",
+      "seletor_resultados": ".interaction-image",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["ui", "ux", "mobile", "interactions", "flows"],
+      "tags": ["ui-interactions", "microinteractions", "ux-flows", "mobile-ux"]
+    }
+  ],
+
+  "tier2_playwright": [
+    {
+      "id": "awwwards",
+      "nome": "Awwwards",
+      "tier": "tier2_playwright",
+      "tipo": "scraping_playwright",
+      "url_base": "https://www.awwwards.com",
+      "url_busca": "https://www.awwwards.com/websites/?text={query}",
+      "seletor_resultados": ".grid-item figure",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["web", "creative", "ui", "animation", "landing"],
+      "tags": ["award-winning", "creative", "web-design", "best-of-web"]
+    },
+    {
+      "id": "landbook",
+      "nome": "Landbook",
+      "tier": "tier2_playwright",
+      "tipo": "scraping_playwright",
+      "url_base": "https://land-book.com",
+      "url_busca": "https://land-book.com/?s={query}",
+      "seletor_resultados": ".item",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["landing", "web", "hero", "pricing", "saas"],
+      "tags": ["landing-page", "curated", "design-inspiration", "web"]
+    },
+    {
+      "id": "siteinspire",
+      "nome": "SiteInspire",
+      "tier": "tier2_playwright",
+      "tipo": "scraping_playwright",
+      "url_base": "https://www.siteinspire.com",
+      "url_busca": "https://www.siteinspire.com/?categories={query}",
+      "seletor_resultados": ".site-item",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["web", "creative", "minimal", "typography", "landing"],
+      "tags": ["curated", "web-design", "creative-web", "showcase"]
+    },
+    {
+      "id": "heroicons",
+      "nome": "Heroicons",
+      "tier": "tier2_playwright",
+      "tipo": "scraping_playwright",
+      "url_base": "https://heroicons.com",
+      "url_busca": "https://heroicons.com/?query={query}",
+      "seletor_resultados": "[data-icon-name]",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["icons", "svg", "ui"],
+      "tags": ["icons", "tailwind", "svg", "open-source"]
+    },
+    {
+      "id": "goodux",
+      "nome": "Good UX",
+      "tier": "tier2_playwright",
+      "tipo": "scraping_playwright",
+      "url_base": "https://goodux.appcues.com",
+      "url_busca": "https://goodux.appcues.com/?s={query}",
+      "seletor_resultados": ".screenshot-wrap",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["ux", "onboarding", "ui", "flows", "mobile"],
+      "tags": ["ux-patterns", "onboarding", "product-ux", "user-flow"]
+    },
+    {
+      "id": "svgrepo",
+      "nome": "SVGRepo",
+      "tier": "tier2_playwright",
+      "tipo": "scraping_playwright",
+      "url_base": "https://www.svgrepo.com",
+      "url_busca": "https://www.svgrepo.com/vectors/{query}/",
+      "seletor_resultados": ".vector-item",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["icons", "svg", "illustration"],
+      "tags": ["svg", "icons", "vectors", "free"]
+    },
+    {
+      "id": "muzli",
+      "nome": "Muzli",
+      "tier": "tier2_playwright",
+      "tipo": "scraping_playwright",
+      "url_base": "https://muz.li",
+      "url_busca": "https://muz.li/",
+      "seletor_resultados": ".post-card",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["ui", "branding", "web", "inspiration"],
+      "tags": ["design-news", "inspiration", "curated", "weekly"]
+    },
+    {
+      "id": "seesaw",
+      "nome": "Seesaw",
+      "tier": "tier2_playwright",
+      "tipo": "scraping_playwright",
+      "url_base": "https://www.seesaw.website",
+      "url_busca": "https://www.seesaw.website/",
+      "seletor_resultados": ".portfolio-item",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["web", "creative", "portfolio", "animation"],
+      "tags": ["web-design", "creative", "portfolio", "motion"]
+    },
+    {
+      "id": "uxsnaps",
+      "nome": "UX Snaps",
+      "tier": "tier2_playwright",
+      "tipo": "scraping_playwright",
+      "url_base": "https://www.uxsnaps.com",
+      "url_busca": "https://www.uxsnaps.com/",
+      "seletor_resultados": ".snap-card",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["ux", "ui", "mobile", "web", "components"],
+      "tags": ["ux-inspiration", "ui-screenshots", "mobile", "app-design"]
+    },
+    {
+      "id": "uxarchive",
+      "nome": "UX Archive",
+      "tier": "tier2_playwright",
+      "tipo": "scraping_playwright",
+      "url_base": "https://uxarchive.com",
+      "url_busca": "https://uxarchive.com/tasks/{query}",
+      "seletor_resultados": ".screenshot",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["ux", "flows", "mobile", "onboarding", "checkout"],
+      "tags": ["user-flow", "ux-patterns", "mobile-ux", "tasks"]
+    },
+    {
+      "id": "designvault",
+      "nome": "Design Vault",
+      "tier": "tier2_playwright",
+      "tipo": "scraping_playwright",
+      "url_base": "https://designvault.io",
+      "url_busca": "https://designvault.io/patterns/{query}/",
+      "seletor_resultados": ".image-container img",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["ui", "patterns", "components", "web", "mobile"],
+      "tags": ["ui-patterns", "design-patterns", "components", "screens"]
+    }
+  ],
+
+  "tier3": [
+    {
+      "id": "mobbin",
+      "nome": "Mobbin",
+      "tier": "tier3",
+      "tipo": "freemium_login",
+      "url_base": "https://mobbin.com",
+      "url_busca": "https://mobbin.com/browse/web/screens?filterBySearch={query}",
+      "seletor_resultados": "[class*='ScreenCard']",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["mobile", "web", "ui", "ux", "onboarding"],
+      "tags": ["mobile-app", "ios", "android", "web-app", "ux-flow"],
+      "auth": { "type": "email_password", "env_user": "MOBBIN_USER", "env_pass": "MOBBIN_PASS" }
+    },
+    {
+      "id": "pinterest",
+      "nome": "Pinterest",
+      "tier": "tier3",
+      "tipo": "freemium_login",
+      "url_base": "https://pinterest.com",
+      "url_busca": "https://pinterest.com/search/pins/?q={query}",
+      "seletor_resultados": "[data-grid-item]",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["branding", "ui", "illustration", "photography", "web"],
+      "tags": ["mood-board", "inspiration", "visual", "design-ideas"],
+      "auth": { "type": "email_password", "env_user": "PINTEREST_USER", "env_pass": "PINTEREST_PASS" }
+    },
+    {
+      "id": "pageflows",
+      "nome": "Pageflows",
+      "tier": "tier3",
+      "tipo": "freemium_login",
+      "url_base": "https://pageflows.com",
+      "url_busca": "https://pageflows.com/?q={query}",
+      "seletor_resultados": ".flow-screenshot",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["ux", "flows", "onboarding", "checkout", "mobile"],
+      "tags": ["user-flow", "ux-flows", "conversion", "funnel"],
+      "auth": { "type": "subscription", "env_user": "PAGEFLOWS_USER", "env_pass": "PAGEFLOWS_PASS" }
+    },
+    {
+      "id": "refero",
+      "nome": "Refero",
+      "tier": "tier3",
+      "tipo": "freemium_login",
+      "url_base": "https://refero.design",
+      "url_busca": "https://refero.design/?q={query}",
+      "seletor_resultados": ".design-card img",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["ui", "mobile", "web", "saas", "fintech"],
+      "tags": ["ui-reference", "design-reference", "app-screenshots"],
+      "auth": { "type": "subscription", "env_user": "REFERO_USER", "env_pass": "REFERO_PASS" }
+    },
+    {
+      "id": "drawkit",
+      "nome": "DrawKit",
+      "tier": "tier3",
+      "tipo": "freemium_login",
+      "url_base": "https://www.drawkit.com",
+      "url_busca": "https://www.drawkit.com/search?q={query}",
+      "seletor_resultados": ".illustration-card",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["illustration", "icons", "animation"],
+      "tags": ["illustrations", "vector", "lottie", "svg"],
+      "auth": { "type": "email_optional", "env_user": "DRAWKIT_USER", "env_pass": "DRAWKIT_PASS" }
+    },
+    {
+      "id": "hugeicons",
+      "nome": "Huge Icons",
+      "tier": "tier3",
+      "tipo": "freemium_login",
+      "url_base": "https://hugeicons.com",
+      "url_busca": "https://hugeicons.com/icons?search={query}",
+      "seletor_resultados": ".icon-item",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["icons", "svg", "ui"],
+      "tags": ["icons", "premium", "svg", "line-icons"],
+      "auth": { "type": "subscription", "env_user": "HUGEICONS_USER", "env_pass": "HUGEICONS_PASS" }
+    },
+    {
+      "id": "rebrand_gallery",
+      "nome": "Rebrand Gallery",
+      "tier": "tier3",
+      "tipo": "freemium_login",
+      "url_base": "https://rebrand.gallery",
+      "url_busca": "https://rebrand.gallery/search?q={query}",
+      "seletor_resultados": ".project-card",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["branding", "logo", "identity", "ui"],
+      "tags": ["rebrand", "brand-identity", "logo-design", "visual-identity"],
+      "auth": { "type": "subscription", "env_user": "REBRAND_USER", "env_pass": "REBRAND_PASS" }
+    }
+  ],
+
+  "disabled": [
+    {
+      "id": "land_good",
+      "nome": "Land Good",
+      "tier": "disabled",
+      "motivo": "Site fora do ar / domínio inativo"
+    },
+    {
+      "id": "uidesigndaily",
+      "nome": "UI Design Daily",
+      "tier": "disabled",
+      "motivo": "Requer login obrigatório desde 2024"
+    },
+    {
+      "id": "designmunk",
+      "nome": "Designmunk",
+      "tier": "disabled",
+      "motivo": "Site descontinuado"
+    },
+    {
+      "id": "calltoidea",
+      "nome": "Call to Idea",
+      "tier": "disabled",
+      "motivo": "Site com bloqueio agressivo de bots"
+    },
+    {
+      "id": "lstore",
+      "nome": "LStore Graphics",
+      "tier": "disabled",
+      "motivo": "Redirecionamentos inconsistentes"
+    },
+    {
+      "id": "freebiesui",
+      "nome": "Freebies UI",
+      "tier": "disabled",
+      "motivo": "Estrutura HTML inconsistente"
+    },
+    {
+      "id": "uxplanet",
+      "nome": "UX Planet",
+      "tier": "disabled",
+      "motivo": "Conteúdo editorial, não galeria de imagens"
+    }
+  ]
+}

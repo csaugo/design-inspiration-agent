@@ -235,13 +235,13 @@ export async function generateMoodboard(jobId, brief, results) {
     }
     .card-source {
       position: absolute;
-      top: 0.5rem;
-      right: 0.5rem;
-      background: rgba(0,0,0,0.65);
+      bottom: 8px;
+      right: 8px;
+      background: rgba(0,0,0,0.6);
       color: #fff;
-      font-size: 0.7rem;
+      font-size: 10px;
       font-weight: 600;
-      padding: 0.2rem 0.5rem;
+      padding: 2px 6px;
       border-radius: 4px;
       text-transform: uppercase;
       letter-spacing: 0.05em;
