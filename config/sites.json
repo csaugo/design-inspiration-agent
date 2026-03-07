@@ -425,6 +425,18 @@
       "tags": ["award-winning", "creative", "web-design", "best-of-web"]
     },
     {
+      "id": "landbook_simple",
+      "nome": "Landbook",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://land-book.com",
+      "url_busca": "https://land-book.com/?s={query}",
+      "seletor_resultados": ".website-item-wrapper",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["landing", "web", "hero", "pricing", "saas"],
+      "tags": ["landing-page", "saas-pricing", "pricing-page", "minimal", "curated", "design-inspiration"]
+    },
+    {
       "id": "ui_sources",
       "nome": "UI Sources",
       "tier": "tier2_simple",
@@ -435,18 +447,6 @@
       "extrai": ["imagem", "url", "titulo"],
       "categorias": ["ui", "ux", "mobile", "interactions", "flows"],
       "tags": ["ui-interactions", "microinteractions", "ux-flows", "mobile-ux"]
-    },
-    {
-      "id": "landbook_simple",
-      "nome": "Landbook",
-      "tier": "tier2_simple",
-      "tipo": "scraping_simples",
-      "url_base": "https://land-book.com",
-      "url_busca": "https://land-book.com/?s={query}",
-      "seletor_resultados": ".website-item-wrapper",
-      "extrai": ["imagem", "url", "titulo"],
-      "categorias": ["landing", "web", "hero", "pricing", "saas"],
-      "tags": ["landing-page", "curated", "design-inspiration", "web", "minimal"]
     }
   ],
 
