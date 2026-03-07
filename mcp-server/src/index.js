@@ -10,7 +10,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { searchInspiration } from './tools/search.js';
+import { searchInspiration, refineSearch } from './tools/search.js';
 import { getResults } from './tools/results.js';
 
 const PORT = process.env.PORT ?? 3000;
@@ -130,7 +130,7 @@ app.get('/health', (_req, res) => {
 });
 
 app.get('/mcp', (_req, res) => {
-  res.json({ status: 'ok', tools: ['search_inspiration', 'get_results', 'get_selection', 'download_moodboard'] });
+  res.json({ status: 'ok', tools: ['search_inspiration', 'get_results', 'get_selection', 'download_moodboard', 'refine_search'] });
 });
 
 app.post('/mcp/search_inspiration', async (req, res) => {
@@ -236,6 +236,55 @@ app.get('/mcp/get_selection/:jobId', async (req, res) => {
   }
 
   return res.json({ job_id: jobId, selected_count: job.selected.length, images: blocks });
+});
+
+// POST /mcp/refine_search — refina busca com Vision usando seleção como âncora
+app.post('/mcp/refine_search', async (req, res) => {
+  const { job_id, feedback } = req.body ?? {};
+
+  if (!job_id || typeof job_id !== 'string' || job_id.trim() === '') {
+    return res.status(400).json({ error: 'Campo "job_id" é obrigatório.' });
+  }
+  if (!feedback || typeof feedback !== 'string' || feedback.trim().length < 5) {
+    return res.status(400).json({ error: 'Campo "feedback" é obrigatório e deve ter ao menos 5 caracteres.' });
+  }
+
+  try {
+    const result = await refineSearch(job_id.trim(), feedback.trim());
+    return res.json(result);
+  } catch (err) {
+    console.error('[refine_search] erro:', err);
+    return res.status(500).json({ error: err.message ?? 'Erro interno.' });
+  }
+});
+
+// GET /mcp/get_board_url/:jobId — polling até board_url disponível → redirect 302
+app.get('/mcp/get_board_url/:jobId', async (req, res) => {
+  const { jobId } = req.params;
+  if (!jobId) return res.status(400).json({ error: 'jobId obrigatório.' });
+
+  const TIMEOUT_MS = 90_000;
+  const INTERVAL_MS = 3_000;
+  const deadline = Date.now() + TIMEOUT_MS;
+
+  const poll = async () => {
+    const job = await readJobFromRedis(jobId);
+    if (!job) {
+      return res.status(404).json({ error: 'Job não encontrado ou expirado.' });
+    }
+    if (job.status === 'ready' && job.board_url) {
+      return res.redirect(302, job.board_url);
+    }
+    if (job.status === 'error') {
+      return res.status(500).json({ error: job.error ?? 'Erro no processamento do job.' });
+    }
+    if (Date.now() >= deadline) {
+      return res.status(504).json({ error: 'Timeout aguardando moodboard. Tente get_results manualmente.' });
+    }
+    setTimeout(poll, INTERVAL_MS);
+  };
+
+  await poll();
 });
 
 // ── MCP Protocol ───────────────────────────────────────────────────────────
@@ -382,6 +431,23 @@ function createMcpServer() {
     }
   );
 
+  server.tool(
+    'refine_search',
+    'Refina a busca usando as referências que você selecionou no moodboard como âncora visual. Descreva em linguagem natural o que quer ajustar: "mais escuro", "menos colorido", "mais minimalista", etc. Retorna um novo job_id com um moodboard refinado baseado no seu feedback e nas imagens selecionadas.',
+    {
+      job_id: z.string().describe('O job_id do moodboard atual (com seleção feita)'),
+      feedback: z.string().min(5).describe('O que você quer ajustar nas referências. Ex: "mais escuro e minimalista, sem ícones coloridos"'),
+    },
+    async ({ job_id, feedback }) => {
+      try {
+        const result = await refineSearch(job_id.trim(), feedback.trim());
+        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      } catch (err) {
+        return { content: [{ type: 'text', text: JSON.stringify({ error: err.message }) }] };
+      }
+    }
+  );
+
   return server;
 }
 
@@ -445,5 +511,5 @@ app.delete('/mcp-protocol', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`mcp-server rodando na porta ${PORT}`);
   console.log(`MCP Protocol disponível em /mcp-protocol`);
-  console.log(`Tools: search_inspiration, get_results, get_selection, download_moodboard`);
+  console.log(`Tools: search_inspiration, get_results, get_selection, download_moodboard, refine_search`);
 });

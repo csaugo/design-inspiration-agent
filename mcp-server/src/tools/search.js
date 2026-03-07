@@ -1,9 +1,11 @@
 import Bull from 'bull';
 import { createClient } from 'redis';
 import { extractBrief } from '../agent/brief-skill.js';
+import { refineBrief } from '../agent/refine-skill.js';
 
 const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
 const mcpBaseUrl = process.env.MCP_BASE_URL ?? 'http://31.97.21.86:3001';
+const MOODBOARD_EXPIRY_HOURS = Number(process.env.MOODBOARD_EXPIRY_HOURS ?? 24);
 
 function getRedisClient() {
   const client = createClient({ url: redisUrl });
@@ -53,5 +55,79 @@ export async function searchInspiration(query) {
     message: 'Busca iniciada. Use get_results(job_id) para acompanhar o progresso.',
     clarification_questions: brief.questions ?? [],
     poll_url: pollUrl,
+  };
+}
+
+export async function refineSearch(jobId, feedback) {
+  // 1. Ler job pai do Redis
+  const redis = getRedisClient();
+  await redis.connect();
+  let parentJob;
+  try {
+    const raw = await redis.get(`job:${jobId}`);
+    if (!raw) throw new Error('Job não encontrado ou expirado.');
+    parentJob = JSON.parse(raw);
+  } finally {
+    await redis.disconnect();
+  }
+
+  // 2. Validar campo selected
+  if (!parentJob.selected || parentJob.selected.length === 0) {
+    throw new Error(
+      'Selecione referências no moodboard antes de refinar. Abra o board_url e clique em "Exportar para Cursor".'
+    );
+  }
+
+  // 3. Gerar brief refinado via Claude Vision
+  const briefRefinado = await refineBrief(parentJob, feedback);
+
+  // 4. Gerar job filho
+  const jobIdFilho = crypto.randomUUID();
+  const createdAt = new Date().toISOString();
+  const ttl = MOODBOARD_EXPIRY_HOURS * 3600;
+
+  const jobFilho = {
+    job_id: jobIdFilho,
+    status: 'queued',
+    parent_job_id: jobId,
+    brief: briefRefinado,
+    query: feedback,
+    board_url: null,
+    created_at: createdAt,
+    pass: 1,
+  };
+
+  // 5. Salvar job filho no Redis
+  const redis2 = getRedisClient();
+  await redis2.connect();
+  try {
+    await redis2.set(`job:${jobIdFilho}`, JSON.stringify(jobFilho), { EX: ttl });
+  } finally {
+    await redis2.disconnect();
+  }
+
+  // 6. Publicar na fila Bull
+  const queue = getQueue();
+  try {
+    await queue.add({
+      job_id: jobIdFilho,
+      query: feedback,
+      brief: briefRefinado,
+      isRefinement: true,
+      pass: 1,
+    });
+  } finally {
+    await queue.close();
+  }
+
+  const pollUrl = `${mcpBaseUrl}/mcp/get_results/${jobIdFilho}`;
+
+  return {
+    job_id: jobIdFilho,
+    parent_job_id: jobId,
+    poll_url: pollUrl,
+    refinement_notes: briefRefinado.refinement_notes,
+    visual_anchors: briefRefinado.visual_anchors,
+    message: 'Refinamento em andamento. Use get_results com o novo job_id para acompanhar.',
   };
 }

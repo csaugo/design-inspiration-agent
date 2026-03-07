@@ -199,6 +199,40 @@ export async function generateMoodboard(jobId, results, brief) {
     .btn-export:disabled { opacity: 0.4; cursor: not-allowed; }
     .btn-export.success { background: #22c55e; }
     .btn-export.error { background: #ef4444; }
+    .btn-refine {
+      background: transparent;
+      border: 1px solid #6366f1;
+      color: #6366f1;
+      padding: 0.4rem 1rem;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-refine:hover:not(:disabled) { background: rgba(99,102,241,0.12); color: #a5b4fc; border-color: #a5b4fc; }
+    .btn-refine:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* ── Loading screen ── */
+    .loading-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 60vh;
+      gap: 2rem;
+      color: #aaa;
+      font-size: 1rem;
+      text-align: center;
+      padding: 2rem;
+    }
+    .loading-screen p { max-width: 480px; line-height: 1.6; color: #888; }
+    .loading-title { font-size: 1.2rem; font-weight: 700; color: #e0e0e0; }
+    .spinner {
+      animation: spin 1.1s linear infinite;
+      color: #6366f1;
+    }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
     .export-msg {
       display: none;
@@ -360,6 +394,7 @@ export async function generateMoodboard(jobId, results, brief) {
     <div class="topbar-right">
       <button class="btn-ghost" onclick="selectAll()">Selecionar Todas</button>
       <button class="btn-export" id="btn-export" disabled onclick="exportToAgent()">Exportar para Cursor (0)</button>
+      <button class="btn-refine" id="btn-refine" disabled onclick="startRefine()">Refinar busca →</button>
     </div>
   </div>
 
@@ -390,6 +425,8 @@ export async function generateMoodboard(jobId, results, brief) {
       const btn = document.getElementById('btn-export');
       btn.textContent = 'Exportar para Cursor (' + n + ')';
       btn.disabled = n === 0;
+      const btnRefine = document.getElementById('btn-refine');
+      if (btnRefine) btnRefine.disabled = n === 0;
     }
 
     function toggleCard(resultId) {
@@ -463,6 +500,97 @@ export async function generateMoodboard(jobId, results, brief) {
           btn.className = 'btn-export';
           btn.disabled = selected.size === 0;
         }, 3000);
+      }
+    }
+    function showLoadingScreen(novoJobId) {
+      var wrapper = document.querySelector('.grid-wrapper');
+      if (!wrapper) return;
+      wrapper.innerHTML = '<div class="loading-screen">' +
+        '<svg class="spinner" xmlns="http://www.w3.org/2000/svg" width="52" height="52" fill="none" viewBox="0 0 24 24">' +
+        '<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5" stroke-dasharray="31.4 31.4" stroke-linecap="round"/>' +
+        '</svg>' +
+        '<span class="loading-title">Refinando moodboard...</span>' +
+        '<p>Analisando suas referências e gerando um novo moodboard com base no seu feedback.<br>Isso pode levar até 60 segundos.</p>' +
+        '<p style="font-size:0.75rem;color:#555;">job_id: ' + novoJobId + '</p>' +
+        '</div>';
+
+      var attempts = 0;
+      var maxAttempts = 30;
+      var interval = setInterval(async function() {
+        attempts++;
+        try {
+          var resp = await fetch(MCP_SERVER + '/mcp/get_results/' + novoJobId);
+          var data = await resp.json();
+          if (data.status === 'ready' && data.board_url) {
+            clearInterval(interval);
+            window.location.href = data.board_url;
+            return;
+          }
+          if (data.status === 'error') {
+            clearInterval(interval);
+            var w = document.querySelector('.grid-wrapper');
+            if (w) w.innerHTML = '<div class="loading-screen"><p style="color:#ef4444">Erro ao gerar moodboard refinado: ' + (data.error || 'erro desconhecido') + '</p></div>';
+            return;
+          }
+        } catch (e) {
+          console.warn('[refine polling] erro:', e.message);
+        }
+        if (attempts >= maxAttempts) {
+          clearInterval(interval);
+          var w = document.querySelector('.grid-wrapper');
+          if (w) w.innerHTML = '<div class="loading-screen"><p style="color:#f59e0b">Timeout atingido. Use get_results com o job_id <strong>' + novoJobId + '</strong> no Cursor para verificar o status.</p></div>';
+        }
+      }, 3000);
+    }
+
+    async function silentExport() {
+      if (selected.size === 0) return;
+      try {
+        await fetch(MCP_SERVER + '/mcp/select/' + JOB_ID, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ selected: Array.from(selected) })
+        });
+      } catch (e) {
+        console.warn('[silentExport] erro:', e.message);
+      }
+    }
+
+    async function startRefine() {
+      if (selected.size === 0) {
+        alert('Selecione ao menos uma referência antes de refinar.');
+        return;
+      }
+
+      var fb = prompt(
+        'Descreva o que quer ajustar:\\nEx: "mais escuro, sem gradientes, tipografia maior"'
+      );
+      if (!fb || fb.trim().length < 5) return;
+
+      var btnRefine = document.getElementById('btn-refine');
+      var btnExport = document.getElementById('btn-export');
+      btnRefine.disabled = true;
+      btnRefine.textContent = 'Refinando...';
+      btnExport.disabled = true;
+
+      await silentExport();
+
+      try {
+        var resp = await fetch(MCP_SERVER + '/mcp/refine_search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_id: JOB_ID, feedback: fb.trim() })
+        });
+        var data = await resp.json();
+        if (!resp.ok) {
+          throw new Error(data.error || 'HTTP ' + resp.status);
+        }
+        showLoadingScreen(data.job_id);
+      } catch (err) {
+        btnRefine.disabled = false;
+        btnRefine.textContent = 'Refinar busca →';
+        btnExport.disabled = selected.size === 0;
+        alert('Erro ao iniciar refinamento: ' + err.message);
       }
     }
   </script>
