@@ -67,6 +67,11 @@ queue.process(async (job) => {
 
     const query = keywords.join(' ');
 
+    // Query curta para scraping HTTP (sites de inspiração não suportam frases longas)
+    const scrapeQuery = [brief.component, brief.context]
+      .filter(Boolean)
+      .join(' ') || keywords[0] || query;
+
     const selectedSites = selectSites(brief, {
       maxTier: 2,
       limit: 4,
@@ -86,7 +91,7 @@ queue.process(async (job) => {
         }
 
         if (site.tier === 'tier2_simple') {
-          const items = await scrapeSimple(site, query, maxResultsPerSite);
+          const items = await scrapeSimple(site, scrapeQuery, maxResultsPerSite);
           console.log(`[worker] ${site.nome} (tier2_simple) → ${items.length} resultados`);
           return items;
         }
