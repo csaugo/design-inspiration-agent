@@ -44,6 +44,7 @@ services:
       - agent-net
     volumes:
       - moodboard_data:/app/public
+      - ./config:/app/config:ro
     depends_on:
       redis:
         condition: service_healthy

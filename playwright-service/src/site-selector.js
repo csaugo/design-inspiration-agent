@@ -5,7 +5,7 @@ import path from 'path';
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const SITES_JSON_PATH = path.resolve(__dirname, '../../..', 'config/sites.json');
+const SITES_JSON_PATH = path.resolve(__dirname, '..', 'config/sites.json');
 
 let _sitesCache = null;
 
