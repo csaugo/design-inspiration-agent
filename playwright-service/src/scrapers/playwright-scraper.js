@@ -6,7 +6,7 @@ const USER_AGENT =
 
 let browser = null;
 
-async function getBrowser() {
+export async function getBrowser() {
   if (!browser || !browser.isConnected()) {
     browser = await chromium.launch({
       headless: true,

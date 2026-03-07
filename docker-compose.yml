@@ -5,6 +5,7 @@ networks:
 volumes:
   redis_data:
   moodboard_data:
+  session_data:
 
 services:
   mcp-server:
@@ -45,6 +46,7 @@ services:
     volumes:
       - moodboard_data:/app/public
       - ./config:/app/config:ro
+      - session_data:/app/sessions
     depends_on:
       redis:
         condition: service_healthy

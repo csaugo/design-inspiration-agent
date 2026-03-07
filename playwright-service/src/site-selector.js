@@ -96,6 +96,26 @@ function calcScore(site, brief) {
  * @param {number} [options.minPlaywright=0] - Mínimo de sites tier2_playwright garantidos (quando maxTier>=3)
  * @returns {Array<{id, nome, tier, score, url_busca, seletor_resultados, extrai, api_info?}>}
  */
+/**
+ * Retorna todos os sites tier3 com credentialKey, sem filtragem por score.
+ * Usado pelo worker para executar scrapers autenticados independentemente da seleção principal.
+ *
+ * @returns {Array}
+ */
+export function getTier3Sites() {
+  const data = loadSites();
+  return (data.tier3 ?? []).map((site) => ({
+    id: site.id,
+    nome: site.nome,
+    tier: site.tier,
+    url_base: site.url_base ?? null,
+    url_busca: site.url_busca ?? null,
+    seletor_resultados: site.seletor_resultados ?? null,
+    extrai: site.extrai ?? [],
+    credentialKey: site.credentialKey ?? null,
+  }));
+}
+
 export function selectSites(brief = {}, options = {}) {
   const { maxTier = 2, limit = 5, includeUnsplash = true, minPlaywright = 0 } = options;
 
@@ -114,6 +134,7 @@ export function selectSites(brief = {}, options = {}) {
     seletor_resultados: site.seletor_resultados ?? null,
     extrai: site.extrai ?? [],
     ...(site.api_info ? { api_info: site.api_info } : {}),
+    ...(site.credentialKey ? { credentialKey: site.credentialKey } : {}),
   }));
 
   const sorted = mapped.slice().sort((a, b) => b.score - a.score);

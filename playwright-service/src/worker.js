@@ -6,7 +6,9 @@ import { createClient } from 'redis';
 import { searchUnsplash } from './scrapers/api-scraper.js';
 import { scrapeSimple } from './scrapers/simple-scraper.js';
 import { scrapePlaywright } from './scrapers/playwright-scraper.js';
-import { selectSites } from './site-selector.js';
+import { scrape as mobbinScrape } from './scrapers/mobbin-scraper.js';
+import { scrape as pinterestScrape } from './scrapers/pinterest-scraper.js';
+import { selectSites, getTier3Sites } from './site-selector.js';
 import { generateMoodboard } from './moodboard/generator.js';
 import { downloadAssets } from './moodboard/asset-downloader.js';
 import { packageSelection } from './moodboard/zip-packager.js';
@@ -127,12 +129,20 @@ queue.process(async (job) => {
       minPlaywright: 2,
     });
 
+    // Tier 3 é executado à parte para não competir com o limite de seleção
+    const tier3Sites = getTier3Sites();
+    const tier3Active = tier3Sites.filter(
+      (s) => s.id === 'mobbin' || s.id === 'pinterest',
+    );
     console.log(
       `[worker] job=${jobId} — sites selecionados: ${selectedSites.map((s) => s.id).join(', ')}`,
     );
+    console.log(
+      `[worker] Tier 3: ${tier3Sites.length} sites configurados, ${tier3Active.length} ativos`,
+    );
 
-    const settledResults = await Promise.allSettled(
-      selectedSites.map(async (site) => {
+    const settledResults = await Promise.allSettled([
+      ...selectedSites.map(async (site) => {
         if (site.tier === 'unsplash') {
           const items = await searchUnsplash(keywords, maxResultsPerSite);
           console.log(`[worker] Unsplash → ${items.length} resultados`);
@@ -151,7 +161,21 @@ queue.process(async (job) => {
         console.log(`[worker] ${site.id} tier=${site.tier} — não suportado, pulando`);
         return [];
       }),
-    );
+      // Tier 3 — scrapers autenticados (silenciosos se sem credenciais)
+      ...tier3Active.map(async (site) => {
+        if (site.id === 'mobbin') {
+          const items = await mobbinScrape(site, keywords);
+          console.log(`[worker] Mobbin (tier3) → ${items.length} resultados`);
+          return items;
+        }
+        if (site.id === 'pinterest') {
+          const items = await pinterestScrape(site, keywords);
+          console.log(`[worker] Pinterest (tier3) → ${items.length} resultados`);
+          return items;
+        }
+        return [];
+      }),
+    ]);
 
     const rawResults = settledResults.flatMap((r) =>
       r.status === 'fulfilled' ? r.value : [],
