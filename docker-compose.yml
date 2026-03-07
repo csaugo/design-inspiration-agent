@@ -20,6 +20,8 @@ services:
       redis:
         condition: service_healthy
     env_file: .env
+    volumes:
+      - moodboard_data:/app/public:ro
     restart: unless-stopped
 
   redis:

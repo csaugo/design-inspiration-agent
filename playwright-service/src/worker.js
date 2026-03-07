@@ -1,4 +1,6 @@
 import 'dotenv/config';
+import fs from 'fs/promises';
+import path from 'path';
 import Bull from 'bull';
 import { createClient } from 'redis';
 import { searchUnsplash } from './scrapers/api-scraper.js';
@@ -6,13 +8,17 @@ import { scrapeSimple } from './scrapers/simple-scraper.js';
 import { scrapePlaywright } from './scrapers/playwright-scraper.js';
 import { selectSites } from './site-selector.js';
 import { generateMoodboard } from './moodboard/generator.js';
+import { downloadAssets } from './moodboard/asset-downloader.js';
+import { packageSelection } from './moodboard/zip-packager.js';
 import { curateResults } from './agent/curator-skill.js';
+import { cleanupExpiredJobs } from './cleanup.js';
 
 const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
 const moodboardBaseUrl = process.env.MOODBOARD_BASE_URL ?? 'http://localhost:8081';
 const maxResultsPerSite = parseInt(process.env.MAX_RESULTS_PER_SITE ?? '6', 10);
 const maxTotalResults = 24;
 const curatorMinScore = parseFloat(process.env.CURATOR_MIN_SCORE ?? '45');
+const PUBLIC_DIR = '/app/public';
 
 const queue = new Bull('inspiration-jobs', redisUrl);
 
@@ -22,12 +28,9 @@ async function updateJobInRedis(redis, jobId, updates) {
   const existing = raw ? JSON.parse(raw) : {};
   const updated = { ...existing, ...updates };
   await redis.set(key, JSON.stringify(updated), { EX: 86400 });
+  return updated;
 }
 
-/**
- * Normaliza um resultado de qualquer fonte para o formato esperado
- * pelo generateMoodboard: { source, description, author, url_thumb, url_full, url_page }
- */
 function normalizeResult(item) {
   if (item.imageUrl) {
     return {
@@ -42,9 +45,6 @@ function normalizeResult(item) {
   return item;
 }
 
-/**
- * Deduplica resultados por url_thumb, mantendo a primeira ocorrência.
- */
 function deduplicate(results) {
   const seen = new Set();
   return results.filter((r) => {
@@ -54,6 +54,51 @@ function deduplicate(results) {
     return true;
   });
 }
+
+// ── Monitor de seleção: gera ZIP quando seleção é salva ────────────────────
+
+async function checkPendingZips() {
+  let dirs = [];
+  try {
+    const entries = await fs.readdir(PUBLIC_DIR, { withFileTypes: true });
+    dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+  } catch {
+    return;
+  }
+
+  if (dirs.length === 0) return;
+
+  const redis = createClient({ url: redisUrl });
+  redis.on('error', () => {});
+  await redis.connect();
+
+  try {
+    for (const jobId of dirs) {
+      const raw = await redis.get(`job:${jobId}`);
+      if (!raw) continue;
+
+      const job = JSON.parse(raw);
+      if (!job.selected || job.selected.length === 0) continue;
+      if (job.zip_generated) continue;
+
+      console.log(`[worker] zip-monitor — gerando ZIP para job=${jobId}`);
+      try {
+        await packageSelection(jobId, job.selected, job.selected_at);
+        const key = `job:${jobId}`;
+        const rawAgain = await redis.get(key);
+        const existing = rawAgain ? JSON.parse(rawAgain) : {};
+        await redis.set(key, JSON.stringify({ ...existing, zip_generated: true }), { EX: 86400 });
+        console.log(`[worker] zip-monitor — ZIP pronto para job=${jobId}`);
+      } catch (err) {
+        console.error(`[worker] zip-monitor — erro ao gerar ZIP para job=${jobId}: ${err.message}`);
+      }
+    }
+  } finally {
+    await redis.disconnect();
+  }
+}
+
+// ── Processador da fila ────────────────────────────────────────────────────
 
 queue.process(async (job) => {
   const { job_id: jobId, brief } = job.data;
@@ -69,8 +114,6 @@ queue.process(async (job) => {
     }
 
     const query = keywords.join(' ');
-
-    // Query curta para scraping HTTP (sites de inspiração não suportam frases longas)
     const scrapeQuery = [brief.component, brief.context]
       .filter(Boolean)
       .join(' ') || keywords[0] || query;
@@ -93,20 +136,17 @@ queue.process(async (job) => {
           console.log(`[worker] Unsplash → ${items.length} resultados`);
           return items;
         }
-
         if (site.tier === 'tier2_simple') {
           const items = await scrapeSimple(site, scrapeQuery, maxResultsPerSite);
           console.log(`[worker] ${site.nome} (tier2_simple) → ${items.length} resultados`);
           return items;
         }
-
         if (site.tier === 'tier2_playwright') {
           const items = await scrapePlaywright(site, scrapeQuery, maxResultsPerSite);
           console.log(`[worker] ${site.nome} (tier2_playwright) → ${items.length} resultados`);
           return items;
         }
-
-        console.log(`[worker] ${site.id} tier=${site.tier} — não suportado neste passo, pulando`);
+        console.log(`[worker] ${site.id} tier=${site.tier} — não suportado, pulando`);
         return [];
       }),
     );
@@ -126,12 +166,10 @@ queue.process(async (job) => {
     // 4. Curar com Claude Vision
     const curatedResults = await curateResults(precurator, brief);
 
-    // 5. Filtrar por CURATOR_MIN_SCORE
+    // 5. Filtrar por CURATOR_MIN_SCORE e top 12
     const filtered = curatedResults.filter(
       (r) => (r.scores?.score_total ?? 100) >= curatorMinScore,
     );
-
-    // 6. Top 12 por score_total
     const results = filtered.slice(0, 12);
 
     const avgScore = results.length > 0
@@ -139,11 +177,24 @@ queue.process(async (job) => {
       : 0;
 
     console.log(
-      `[worker] job=${jobId} — após curadoria: ${filtered.length} acima do threshold (${curatorMinScore}), top 12: ${results.length}, score médio: ${avgScore}`,
+      `[worker] job=${jobId} — após curadoria: ${filtered.length} acima do threshold, top 12: ${results.length}, score médio: ${avgScore}`,
     );
 
-    const relativePath = await generateMoodboard(jobId, brief, results);
+    // 6. Baixar imagens para disco
+    const enrichedResults = await downloadAssets(jobId, results);
+
+    // 7. Gerar moodboard interativo
+    const relativePath = await generateMoodboard(jobId, enrichedResults, brief);
     const boardUrl = `${moodboardBaseUrl}/${relativePath}`;
+
+    // 8. Montar results_meta (sem base64 — apenas metadados leves)
+    const resultsMeta = enrichedResults.map((r) => ({
+      resultId: r.resultId,
+      imageUrl: r.url_thumb ?? r.imageUrl ?? '',
+      localImagePath: r.localImagePath ?? null,
+      source: r.source,
+      score_total: r.scores?.score_total ?? null,
+    }));
 
     await updateJobInRedis(redis, jobId, {
       status: 'ready',
@@ -151,7 +202,10 @@ queue.process(async (job) => {
       results_count: results.length,
       avg_score: avgScore,
       sources: [...new Set(results.map((r) => r.source))],
+      created_at: new Date().toISOString(),
       completed_at: new Date().toISOString(),
+      zip_url: `${moodboardBaseUrl}/${jobId}/moodboard.zip`,
+      results_meta: resultsMeta,
     });
   } catch (err) {
     console.error(`[worker] job=${jobId} — erro: ${err.message}`);
@@ -166,4 +220,18 @@ queue.process(async (job) => {
   }
 });
 
+// ── Agendamentos ───────────────────────────────────────────────────────────
+
+setInterval(checkPendingZips, 5000);
+
+cleanupExpiredJobs().catch((err) =>
+  console.error('[worker] cleanup inicial falhou:', err.message),
+);
+setInterval(
+  () => cleanupExpiredJobs().catch((err) => console.error('[worker] cleanup falhou:', err.message)),
+  6 * 60 * 60 * 1000,
+);
+
 console.log('[worker] Aguardando jobs na fila inspiration-jobs…');
+console.log('[worker] Monitor de ZIP ativo (intervalo: 5s)');
+console.log('[worker] Limpeza automática agendada (intervalo: 6h)');
