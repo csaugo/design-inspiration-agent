@@ -1,11 +1,11 @@
 {
   "_meta": {
-    "total_active": 50,
-    "total_with_disabled": 57,
+    "total_active": 51,
+    "total_with_disabled": 58,
     "generated_at": "2026-03-07",
     "tiers": {
       "tier1": 6,
-      "tier2_simple": 26,
+      "tier2_simple": 27,
       "tier2_playwright": 11,
       "tier3": 7,
       "disabled": 7
@@ -435,6 +435,18 @@
       "extrai": ["imagem", "url", "titulo"],
       "categorias": ["ui", "ux", "mobile", "interactions", "flows"],
       "tags": ["ui-interactions", "microinteractions", "ux-flows", "mobile-ux"]
+    },
+    {
+      "id": "landbook_simple",
+      "nome": "Landbook",
+      "tier": "tier2_simple",
+      "tipo": "scraping_simples",
+      "url_base": "https://land-book.com",
+      "url_busca": "https://land-book.com/?s={query}",
+      "seletor_resultados": ".website-item-wrapper",
+      "extrai": ["imagem", "url", "titulo"],
+      "categorias": ["landing", "web", "hero", "pricing", "saas"],
+      "tags": ["landing-page", "curated", "design-inspiration", "web", "minimal"]
     }
   ],
 
@@ -458,7 +470,7 @@
       "tipo": "scraping_playwright",
       "url_base": "https://land-book.com",
       "url_busca": "https://land-book.com/?s={query}",
-      "seletor_resultados": ".item",
+      "seletor_resultados": ".website-item-wrapper",
       "extrai": ["imagem", "url", "titulo"],
       "categorias": ["landing", "web", "hero", "pricing", "saas"],
       "tags": ["landing-page", "curated", "design-inspiration", "web"]
