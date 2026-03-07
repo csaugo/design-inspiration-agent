@@ -553,8 +553,8 @@
       "tier": "tier2_playwright",
       "tipo": "scraping_playwright",
       "url_base": "https://nicelydone.club",
-      "url_busca": "https://nicelydone.club/?s={query}",
-      "seletor_resultados": ".gallery-item",
+      "url_busca": "https://nicelydone.club/",
+      "seletor_resultados": "img.aspect-screen.w-full",
       "extrai": ["imagem", "url", "titulo"],
       "categorias": ["ui", "web", "saas", "dashboard"],
       "tags": ["saas", "product-design", "ui-inspiration", "web-app"]
@@ -565,8 +565,8 @@
       "tier": "tier2_playwright",
       "tipo": "scraping_playwright",
       "url_base": "https://www.lapa.ninja",
-      "url_busca": "https://www.lapa.ninja/?s={query}",
-      "seletor_resultados": ".card",
+      "url_busca": "https://www.lapa.ninja/",
+      "seletor_resultados": "div.group.relative.overflow-hidden.rounded-md",
       "extrai": ["imagem", "url", "titulo"],
       "categorias": ["landing", "web", "ui", "hero", "pricing"],
       "tags": ["landing-page", "saas", "startup", "web-design"]
@@ -577,8 +577,8 @@
       "tier": "tier2_playwright",
       "tipo": "scraping_playwright",
       "url_base": "https://saaspages.xyz",
-      "url_busca": "https://saaspages.xyz/sections?q={query}",
-      "seletor_resultados": ".section-preview",
+      "url_busca": "https://saaspages.xyz/",
+      "seletor_resultados": ".block-card",
       "extrai": ["imagem", "url", "titulo"],
       "categorias": ["saas", "landing", "web", "pricing", "hero"],
       "tags": ["saas", "product", "landing-page", "startup"]
