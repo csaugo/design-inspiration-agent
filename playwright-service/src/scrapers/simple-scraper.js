@@ -53,7 +53,10 @@ function extractPageUrl(el, $, baseUrl) {
   if (!href) href = elem.find('a').first().attr('href');
   if (!href) return null;
   if (href.startsWith('http')) return href;
-  if (href.startsWith('/')) return new URL(href, baseUrl).href;
+  if (href.startsWith('/')) {
+    if (!baseUrl) return null;
+    try { return new URL(href, baseUrl).href; } catch { return null; }
+  }
   return null;
 }
 

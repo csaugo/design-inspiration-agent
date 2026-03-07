@@ -109,6 +109,7 @@ export function selectSites(brief = {}, options = {}) {
       nome: site.nome,
       tier: site.tier,
       score: calcScore(site, brief),
+      url_base: site.url_base ?? null,
       url_busca: site.url_busca ?? null,
       seletor_resultados: site.seletor_resultados ?? null,
       extrai: site.extrai ?? [],
