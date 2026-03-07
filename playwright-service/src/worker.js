@@ -17,7 +17,9 @@ const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
 const moodboardBaseUrl = process.env.MOODBOARD_BASE_URL ?? 'http://localhost:8081';
 const maxResultsPerSite = parseInt(process.env.MAX_RESULTS_PER_SITE ?? '6', 10);
 const maxTotalResults = 24;
-const curatorMinScore = parseFloat(process.env.CURATOR_MIN_SCORE ?? '45');
+const curatorMinScore    = parseFloat(process.env.CURATOR_MIN_SCORE    ?? '45');
+const curatorMaxResults  = parseInt(process.env.CURATOR_MAX_RESULTS   ?? '12', 10);
+const curatorMinFallback = parseInt(process.env.CURATOR_MIN_FALLBACK  ?? '3',  10);
 const PUBLIC_DIR = '/app/public';
 
 const queue = new Bull('inspiration-jobs', redisUrl);
@@ -166,18 +168,31 @@ queue.process(async (job) => {
     // 4. Curar com Claude Vision
     const curatedResults = await curateResults(precurator, brief);
 
-    // 5. Filtrar por CURATOR_MIN_SCORE e top 12
-    const filtered = curatedResults.filter(
+    // 5. Filtrar por CURATOR_MIN_SCORE, fallback top-N e limitar ao máximo configurado
+    let approved = curatedResults.filter(
       (r) => (r.scores?.score_total ?? 100) >= curatorMinScore,
     );
-    const results = filtered.slice(0, 12);
+
+    if (approved.length < curatorMinFallback && curatedResults.length > 0) {
+      const sorted = [...curatedResults].sort(
+        (a, b) => (b.scores?.score_total ?? 0) - (a.scores?.score_total ?? 0),
+      );
+      approved = sorted.slice(0, Math.min(curatorMinFallback, sorted.length));
+      console.warn(
+        `[Curator] Threshold ${curatorMinScore} aprovou apenas ${approved.length < curatorMinFallback ? approved.length : 0} resultado(s). ` +
+        `Fallback top-${approved.length} ativado. ` +
+        `Score mais alto disponível: ${approved[0]?.scores?.score_total ?? 'N/A'}`,
+      );
+    }
+
+    const results = approved.slice(0, curatorMaxResults);
 
     const avgScore = results.length > 0
       ? Math.round(results.reduce((sum, r) => sum + (r.scores?.score_total ?? 0), 0) / results.length)
       : 0;
 
     console.log(
-      `[worker] job=${jobId} — após curadoria: ${filtered.length} acima do threshold, top 12: ${results.length}, score médio: ${avgScore}`,
+      `[worker] job=${jobId} — após curadoria: ${approved.length} acima do threshold/fallback, top ${curatorMaxResults}: ${results.length}, score médio: ${avgScore}`,
     );
 
     // 6. Baixar imagens para disco
