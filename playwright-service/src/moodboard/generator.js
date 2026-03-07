@@ -571,44 +571,53 @@ export async function generateMoodboard(jobId, results, brief) {
     }
 
     // ── Polling de Passe 2 ────────────────────────────────────────────────
+    // Só atualiza a UI; nunca recarrega a página automaticamente (evita refresh contínuo).
     (function startPass2Polling() {
       var pollInterval = setInterval(async function() {
         try {
           var resp = await fetch(MCP_SERVER + '/mcp/get_results/' + JOB_ID);
+          if (!resp.ok) return;
+          var contentType = resp.headers.get('Content-Type') || '';
+          if (contentType.indexOf('application/json') === -1) return;
           var data = await resp.json();
+          if (!data || typeof data !== 'object') return;
+
+          if (data.status === 'ready') {
+            clearInterval(pollInterval);
+            document.getElementById('pass2-status').style.display = 'none';
+            if (data.pass2_complete) {
+              var existing = document.getElementById('pass2-notify');
+              if (!existing) {
+                var notify = document.createElement('div');
+                notify.id = 'pass2-notify';
+                notify.style.cssText = [
+                  'position:fixed', 'bottom:24px', 'left:50%',
+                  'transform:translateX(-50%)', 'z-index:9999',
+                  'background:#166534', 'color:#dcfce7',
+                  'border-radius:8px', 'padding:12px 20px',
+                  'font-size:13px', 'display:flex',
+                  'align-items:center', 'gap:12px',
+                  'box-shadow:0 4px 12px rgba(0,0,0,0.3)'
+                ].join(';');
+                notify.innerHTML = [
+                  '<span>✅ Novas referências disponíveis</span>',
+                  '<button type="button" onclick="window.location.reload()" style="',
+                    'background:#15803d;color:#fff;border:none;',
+                    'border-radius:6px;padding:6px 12px;',
+                    'cursor:pointer;font-size:12px;white-space:nowrap',
+                  '">Atualizar página</button>'
+                ].join('');
+                document.body.appendChild(notify);
+              }
+            }
+            return;
+          }
           if (data.pass2_running) {
             document.getElementById('pass2-status').style.display = 'block';
             return;
           }
           clearInterval(pollInterval);
           document.getElementById('pass2-status').style.display = 'none';
-          if (data.pass2_complete) {
-            // Exibe notificação manual — não recarrega automaticamente
-            var existing = document.getElementById('pass2-notify');
-            if (!existing) {
-              var notify = document.createElement('div');
-              notify.id = 'pass2-notify';
-              notify.style.cssText = [
-                'position:fixed', 'bottom:24px', 'left:50%',
-                'transform:translateX(-50%)', 'z-index:9999',
-                'background:#166534', 'color:#dcfce7',
-                'border-radius:8px', 'padding:12px 20px',
-                'font-size:13px', 'display:flex',
-                'align-items:center', 'gap:12px',
-                'box-shadow:0 4px 12px rgba(0,0,0,0.3)'
-              ].join(';');
-              notify.innerHTML = [
-                '<span>✅ Novas referências disponíveis</span>',
-                '<button onclick="window.location.reload()" style="',
-                  'background:#15803d;color:#fff;border:none;',
-                  'border-radius:6px;padding:6px 12px;',
-                  'cursor:pointer;font-size:12px;white-space:nowrap',
-                '">Atualizar página</button>'
-              ].join('');
-              document.body.appendChild(notify);
-            }
-            clearInterval(pollInterval);
-          }
         } catch (e) {
           // silencioso — polling continua em caso de erro transitório
         }
