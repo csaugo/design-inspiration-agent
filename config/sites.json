@@ -434,7 +434,7 @@
       "seletor_resultados": ".website-item-wrapper",
       "extrai": ["imagem", "url", "titulo"],
       "categorias": ["landing", "web", "hero", "pricing", "saas"],
-      "tags": ["landing-page", "saas-pricing", "pricing-page", "minimal", "curated", "design-inspiration"]
+      "tags": ["landing-page", "saas", "pricing", "minimal", "curated", "design-inspiration"]
     },
     {
       "id": "ui_sources",
