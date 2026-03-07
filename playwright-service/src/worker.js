@@ -10,7 +10,7 @@ import { generateMoodboard } from './moodboard/generator.js';
 const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
 const moodboardBaseUrl = process.env.MOODBOARD_BASE_URL ?? 'http://localhost:8081';
 const maxResultsPerSite = parseInt(process.env.MAX_RESULTS_PER_SITE ?? '6', 10);
-const maxTotalResults = 12;
+const maxTotalResults = 24;
 
 const queue = new Bull('inspiration-jobs', redisUrl);
 
