@@ -13,6 +13,7 @@ import { generateMoodboard } from './moodboard/generator.js';
 import { downloadAssets } from './moodboard/asset-downloader.js';
 import { packageSelection } from './moodboard/zip-packager.js';
 import { curateResults } from './agent/curator-skill.js';
+import { enrichBrief } from './agent/enrich-skill.js';
 import { cleanupExpiredJobs } from './cleanup.js';
 
 const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
@@ -102,6 +103,30 @@ async function checkPendingZips() {
   }
 }
 
+// ── Curadoria reutilizável (Pass 1 e Pass 2) ──────────────────────────────
+
+async function runCuration(candidates, brief) {
+  const curatedResults = await curateResults(candidates, brief);
+
+  let approved = curatedResults.filter(
+    (r) => (r.scores?.score_total ?? 100) >= curatorMinScore,
+  );
+
+  if (approved.length < curatorMinFallback && curatedResults.length > 0) {
+    const sorted = [...curatedResults].sort(
+      (a, b) => (b.scores?.score_total ?? 0) - (a.scores?.score_total ?? 0),
+    );
+    approved = sorted.slice(0, Math.min(curatorMinFallback, sorted.length));
+    console.warn(
+      `[Curator] Threshold ${curatorMinScore} aprovou apenas ${approved.length < curatorMinFallback ? approved.length : 0} resultado(s). ` +
+      `Fallback top-${approved.length} ativado. ` +
+      `Score mais alto disponível: ${approved[0]?.scores?.score_total ?? 'N/A'}`,
+    );
+  }
+
+  return approved.slice(0, curatorMaxResults);
+}
+
 // ── Processador da fila ────────────────────────────────────────────────────
 
 queue.process(async (job) => {
@@ -122,9 +147,10 @@ queue.process(async (job) => {
       .filter(Boolean)
       .join(' ') || keywords[0] || query;
 
+    const siteLimit = job.data.pass === 2 ? 15 : 5;
     const selectedSites = selectSites(brief, {
       maxTier: 3,
-      limit: 5,
+      limit: siteLimit,
       includeUnsplash: true,
       minPlaywright: 2,
     });
@@ -189,63 +215,124 @@ queue.process(async (job) => {
       `[worker] job=${jobId} — total após dedup: ${deduped.length}, enviando ${precurator.length} para curadoria`,
     );
 
-    // 4. Curar com Claude Vision
-    const curatedResults = await curateResults(precurator, brief);
-
-    // 5. Filtrar por CURATOR_MIN_SCORE, fallback top-N e limitar ao máximo configurado
-    let approved = curatedResults.filter(
-      (r) => (r.scores?.score_total ?? 100) >= curatorMinScore,
-    );
-
-    if (approved.length < curatorMinFallback && curatedResults.length > 0) {
-      const sorted = [...curatedResults].sort(
-        (a, b) => (b.scores?.score_total ?? 0) - (a.scores?.score_total ?? 0),
-      );
-      approved = sorted.slice(0, Math.min(curatorMinFallback, sorted.length));
-      console.warn(
-        `[Curator] Threshold ${curatorMinScore} aprovou apenas ${approved.length < curatorMinFallback ? approved.length : 0} resultado(s). ` +
-        `Fallback top-${approved.length} ativado. ` +
-        `Score mais alto disponível: ${approved[0]?.scores?.score_total ?? 'N/A'}`,
-      );
-    }
-
-    const results = approved.slice(0, curatorMaxResults);
+    // 4. Curar com Claude Vision (usa runCuration reutilizável)
+    const results = await runCuration(precurator, brief);
 
     const avgScore = results.length > 0
       ? Math.round(results.reduce((sum, r) => sum + (r.scores?.score_total ?? 0), 0) / results.length)
       : 0;
 
     console.log(
-      `[worker] job=${jobId} — após curadoria: ${approved.length} acima do threshold/fallback, top ${curatorMaxResults}: ${results.length}, score médio: ${avgScore}`,
+      `[worker] job=${jobId} — após curadoria: ${results.length} aprovados (pass=${job.data.pass ?? 1}), score médio: ${avgScore}`,
     );
 
     // 6. Baixar imagens para disco
     const enrichedResults = await downloadAssets(jobId, results);
 
-    // 7. Gerar moodboard interativo
-    const relativePath = await generateMoodboard(jobId, enrichedResults, brief);
-    const boardUrl = `${moodboardBaseUrl}/${relativePath}`;
+    // ── Bifurcação Pass 1 / Pass 2 ──────────────────────────────────────────
+    const isPass2 = job.data.pass === 2;
 
-    // 8. Montar results_meta (sem base64 — apenas metadados leves)
-    const resultsMeta = enrichedResults.map((r) => ({
-      resultId: r.resultId,
-      imageUrl: r.url_thumb ?? r.imageUrl ?? '',
-      localImagePath: r.localImagePath ?? null,
-      source: r.source,
-      score_total: r.scores?.score_total ?? null,
-    }));
+    if (!isPass2) {
+      // ── FIM DO PASSE 1 ────────────────────────────────────────────────────
+      // 7. Gerar moodboard do Passe 1
+      const relativePath = await generateMoodboard(jobId, enrichedResults, brief);
+      const boardUrl = `${moodboardBaseUrl}/${relativePath}`;
 
-    await updateJobInRedis(redis, jobId, {
-      status: 'ready',
-      board_url: boardUrl,
-      results_count: results.length,
-      avg_score: avgScore,
-      sources: [...new Set(results.map((r) => r.source))],
-      created_at: new Date().toISOString(),
-      completed_at: new Date().toISOString(),
-      zip_url: `${moodboardBaseUrl}/${jobId}/moodboard.zip`,
-      results_meta: resultsMeta,
-    });
+      // 8. Montar results_meta leve
+      const resultsMeta = enrichedResults.map((r) => ({
+        resultId: r.resultId,
+        imageUrl: r.url_thumb ?? r.imageUrl ?? '',
+        localImagePath: r.localImagePath ?? null,
+        source: r.source,
+        score_total: r.scores?.score_total ?? null,
+      }));
+
+      await updateJobInRedis(redis, jobId, {
+        status: 'pass1_done',
+        board_url: boardUrl,
+        results_count: results.length,
+        avg_score: avgScore,
+        sources: [...new Set(results.map((r) => r.source))],
+        created_at: new Date().toISOString(),
+        zip_url: `${moodboardBaseUrl}/${jobId}/moodboard.zip`,
+        results_meta: resultsMeta,
+        pass1_results: resultsMeta,
+      });
+
+      // Enriquece brief com top-4 por score
+      const topForEnrich = [...resultsMeta]
+        .sort((a, b) => (b.score_total ?? 0) - (a.score_total ?? 0))
+        .slice(0, 4);
+
+      const enrichedBriefData = await enrichBrief(brief, topForEnrich);
+
+      // Enfileira Passe 2 na mesma fila Bull
+      await queue.add(
+        {
+          ...job.data,
+          pass: 2,
+          brief: enrichedBriefData,
+          pass1_results: resultsMeta,
+        },
+        {
+          attempts: 2,
+          backoff: { type: 'fixed', delay: 3000 },
+        },
+      );
+
+      console.log(`[Worker] Passe 1 concluído para job ${jobId}. Passe 2 enfileirado.`);
+
+    } else {
+      // ── FIM DO PASSE 2 ────────────────────────────────────────────────────
+      const pass1Results = job.data.pass1_results || [];
+
+      // Converte pass1_results (leve) para formato compatível com moodboard
+      const pass1ForBoard = pass1Results.map((r) => ({
+        resultId: r.resultId,
+        url_thumb: r.imageUrl,
+        url_full: r.imageUrl,
+        source: r.source ?? 'Web',
+        description: '',
+        author: r.source ?? '',
+        localImagePath: r.localImagePath ?? null,
+        scores: r.score_total != null ? { score_total: r.score_total } : undefined,
+      }));
+
+      // Pool acumulado: Passe 1 (aprovados) + Passe 2 (novos aprovados)
+      const allForMoodboard = [...pass1ForBoard, ...enrichedResults];
+
+      // 7. Moodboard final com pool acumulado (sobrescreve board.html do Passe 1)
+      const relativePath = await generateMoodboard(jobId, allForMoodboard, brief);
+      const boardUrl = `${moodboardBaseUrl}/${relativePath}`;
+
+      // 8. Montar results_meta do pool completo
+      const allResultsMeta = allForMoodboard.map((r) => ({
+        resultId: r.resultId,
+        imageUrl: r.url_thumb ?? r.imageUrl ?? '',
+        localImagePath: r.localImagePath ?? null,
+        source: r.source,
+        score_total: r.scores?.score_total ?? null,
+      }));
+
+      console.log(
+        `[Worker] Passe 2 concluído para job ${jobId}. ` +
+        `Pool total: ${allForMoodboard.length} ` +
+        `(Passe 1: ${pass1Results.length}, Passe 2 novos: ${enrichedResults.length})`,
+      );
+
+      await updateJobInRedis(redis, jobId, {
+        status: 'ready',
+        board_url: boardUrl,
+        results_count: allForMoodboard.length,
+        avg_score: avgScore,
+        sources: [...new Set(allForMoodboard.map((r) => r.source))],
+        completed_at: new Date().toISOString(),
+        zip_url: `${moodboardBaseUrl}/${jobId}/moodboard.zip`,
+        results_meta: allResultsMeta,
+        pass: 2,
+        enriched: true,
+      });
+    }
   } catch (err) {
     console.error(`[worker] job=${jobId} — erro: ${err.message}`);
     await updateJobInRedis(redis, jobId, {

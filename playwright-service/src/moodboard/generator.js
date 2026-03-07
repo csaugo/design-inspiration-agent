@@ -400,6 +400,20 @@ export async function generateMoodboard(jobId, results, brief) {
 
   <div class="export-msg" id="export-msg"></div>
 
+  <div id="pass2-status" style="display:none;
+       max-width:1400px; margin:1rem auto 0; padding:0 1.5rem;">
+    <div style="background:#1e1b4b; color:#a5b4fc; border-radius:8px;
+         padding:12px 16px; font-size:13px;
+         display:flex; align-items:center; gap:10px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2"
+           style="flex-shrink:0; animation:spin 1.2s linear infinite">
+        <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+      </svg>
+      <span>🔍 Buscando mais referências — o moodboard será atualizado em breve</span>
+    </div>
+  </div>
+
   <div class="grid-wrapper">
     <div class="grid">
       ${cardsHtml}
@@ -555,6 +569,29 @@ export async function generateMoodboard(jobId, results, brief) {
         console.warn('[silentExport] erro:', e.message);
       }
     }
+
+    // ── Polling de Passe 2 ────────────────────────────────────────────────
+    (function startPass2Polling() {
+      var pollInterval = setInterval(async function() {
+        try {
+          var resp = await fetch(MCP_SERVER + '/mcp/get_results/' + JOB_ID);
+          var data = await resp.json();
+          if (data.pass2_running) {
+            document.getElementById('pass2-status').style.display = 'block';
+            return;
+          }
+          clearInterval(pollInterval);
+          document.getElementById('pass2-status').style.display = 'none';
+          if (data.pass2_complete) {
+            window.location.reload();
+          }
+        } catch (e) {
+          // silencioso — polling continua em caso de erro transitório
+        }
+      }, 3000);
+      // Timeout de segurança: para o polling após 10 minutos
+      setTimeout(function() { clearInterval(pollInterval); }, 10 * 60 * 1000);
+    })();
 
     async function startRefine() {
       if (selected.size === 0) {
