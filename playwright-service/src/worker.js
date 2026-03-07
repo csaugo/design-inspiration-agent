@@ -3,6 +3,7 @@ import Bull from 'bull';
 import { createClient } from 'redis';
 import { searchUnsplash } from './scrapers/api-scraper.js';
 import { scrapeSimple } from './scrapers/simple-scraper.js';
+import { scrapePlaywright } from './scrapers/playwright-scraper.js';
 import { selectSites } from './site-selector.js';
 import { generateMoodboard } from './moodboard/generator.js';
 
@@ -73,8 +74,8 @@ queue.process(async (job) => {
       .join(' ') || keywords[0] || query;
 
     const selectedSites = selectSites(brief, {
-      maxTier: 2,
-      limit: 4,
+      maxTier: 3,
+      limit: 5,
       includeUnsplash: true,
     });
 
@@ -93,6 +94,12 @@ queue.process(async (job) => {
         if (site.tier === 'tier2_simple') {
           const items = await scrapeSimple(site, scrapeQuery, maxResultsPerSite);
           console.log(`[worker] ${site.nome} (tier2_simple) → ${items.length} resultados`);
+          return items;
+        }
+
+        if (site.tier === 'tier2_playwright') {
+          const items = await scrapePlaywright(site, scrapeQuery, maxResultsPerSite);
+          console.log(`[worker] ${site.nome} (tier2_playwright) → ${items.length} resultados`);
           return items;
         }
 
