@@ -3,11 +3,26 @@ import { runAuthenticatedScraper } from './auth-scraper.js';
 async function loginFn(context, email, password) {
   const page = await context.newPage();
   try {
-    await page.goto('https://mobbin.com/sign-in', { waitUntil: 'domcontentloaded' });
+    // URL correta: /login (não /sign-in, que redireciona para homepage)
+    await page.goto('https://mobbin.com/login', { waitUntil: 'domcontentloaded' });
+
+    // Passo 1: preenche email e submete (form de 2 etapas)
+    await page.waitForSelector("input[type='email']", { timeout: 10000 });
     await page.fill("input[type='email']", email);
+    // Clica no último button[type=submit] do form (botão "Continue")
+    const submitBtns = page.locator("button[type='submit']");
+    await submitBtns.last().click();
+
+    // Passo 2: aguarda o campo de password ficar visível e preenche
+    await page.waitForSelector("input[type='password']:visible", { timeout: 10000 });
     await page.fill("input[type='password']", password);
     await page.click("button[type='submit']");
-    await page.waitForURL('**/browse/**', { timeout: 15000 });
+
+    // Após login, redireciona para /discover/... — aguarda sair da página /login
+    await page.waitForFunction(
+      () => !window.location.pathname.startsWith('/login'),
+      { timeout: 20000 },
+    );
   } finally {
     await page.close();
   }
@@ -15,7 +30,8 @@ async function loginFn(context, email, password) {
 
 async function scrapeFn(context, searchTerms) {
   const query = searchTerms.join(' ');
-  const url = `https://mobbin.com/browse/web/screens?q=${encodeURIComponent(query)}`;
+  // URL correta da busca autenticada: /search/apps/ios?content_type=screens&q={query}
+  const url = `https://mobbin.com/search/apps/ios?content_type=screens&q=${encodeURIComponent(query)}`;
   const page = await context.newPage();
   const results = [];
 
@@ -23,26 +39,24 @@ async function scrapeFn(context, searchTerms) {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
 
     try {
-      await page.waitForSelector(
-        '[class*="ScreenCard"], [class*="screen-card"], .screen-card',
-        { timeout: 10000 },
-      );
+      // Seletor correto na estrutura atual do Mobbin
+      await page.waitForSelector('.screen-border-radius.relative.block', { timeout: 10000 });
     } catch {
-      console.warn('[mobbin-scraper] Timeout aguardando ScreenCard — tentando mesmo assim');
+      console.warn('[mobbin-scraper] Timeout aguardando screen-border-radius — tentando mesmo assim');
     }
 
     const items = await page.$$eval(
-      '[class*="ScreenCard"], [class*="screen-card"], .screen-card',
+      '.screen-border-radius.relative.block',
       (cards) =>
         cards.slice(0, 15).map((card) => ({
-          title: card.querySelector('[class*="app-name"], [class*="AppName"], h3')?.textContent?.trim() || '',
+          title: card.querySelector('img')?.alt?.trim() || '',
           image_url: card.querySelector('img')?.src || '',
-          url: card.querySelector('a')?.href || '',
+          url: card.href || card.getAttribute('href') || '',
         })),
     );
 
     for (const item of items) {
-      if (item.image_url) {
+      if (item.image_url && item.image_url.includes('app_screens')) {
         results.push({
           title: item.title || 'Mobbin Screen',
           imageUrl: item.image_url,
