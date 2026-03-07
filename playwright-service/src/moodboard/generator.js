@@ -27,6 +27,15 @@ function escapeHtml(text) {
 }
 
 /**
+ * Retorna a cor de fundo do badge baseada no score_total.
+ */
+function scoreBadgeColor(score) {
+  if (score >= 75) return '#22c55e';
+  if (score >= 55) return '#f59e0b';
+  return '#ef4444';
+}
+
+/**
  * Gera o HTML de um card de imagem.
  * @param {Object} img
  */
@@ -37,26 +46,52 @@ function renderCard(img) {
   const urlFull = escapeHtml(img.url_full);
   const urlThumb = escapeHtml(img.url_thumb);
 
+  const scores = img.scores;
+  let scoreBadgeHtml = '';
+  let imgTitle = desc || author;
+
+  if (scores) {
+    const total = Math.round(scores.score_total ?? 0);
+    const color = scoreBadgeColor(total);
+    scoreBadgeHtml = `<span class="score-badge" style="background:${color}">${total}</span>`;
+    imgTitle = escapeHtml(
+      `Relevância: ${scores.relevancia ?? '?'} | Estilo: ${scores.estilo ?? '?'} | Qualidade: ${scores.qualidade ?? '?'} | Aplicabilidade: ${scores.aplicabilidade ?? '?'}`,
+    );
+  }
+
   return `
     <div class="card">
       <a href="${urlFull}" target="_blank" rel="noopener noreferrer" class="card-image-link">
         <img
           src="${urlThumb}"
           alt="${desc || author}"
+          title="${imgTitle}"
           loading="lazy"
           class="card-image"
         />
         <span class="card-source">${source}</span>
+        ${scoreBadgeHtml}
       </a>
       <div class="card-body">
         <p class="card-author">${author}</p>
         <p class="card-desc">${desc || '<em>Sem descrição</em>'}</p>
+        ${scores?.motivo ? `<p class="card-motivo">${escapeHtml(scores.motivo)}</p>` : ''}
       </div>
     </div>`;
 }
 
 /**
- * Gera um moodboard HTML completo para um job.
+ * Calcula o score médio do array de resultados (apenas os que têm scores).
+ */
+function calcAvgScore(results) {
+  const withScores = results.filter((r) => r.scores?.score_total != null);
+  if (withScores.length === 0) return null;
+  const sum = withScores.reduce((acc, r) => acc + r.scores.score_total, 0);
+  return Math.round(sum / withScores.length);
+}
+
+/**
+ * Gera o HTML de um moodboard completo para um job.
  * @param {string} jobId - UUID do job
  * @param {Object} brief - Brief estruturado com component, context, style, questions, keywords
  * @param {Array} results - Array de imagens retornado pelo scraper
@@ -79,6 +114,8 @@ export async function generateMoodboard(jobId, brief, results) {
     : escapeHtml(brief.style ?? '');
   const questions = Array.isArray(brief.questions) ? brief.questions : [];
   const count = results.length;
+  const sourcesCount = new Set(results.map((r) => r.source)).size;
+  const avgScore = calcAvgScore(results);
 
   const cardsHtml = results.map(renderCard).join('\n');
 
@@ -246,6 +283,21 @@ export async function generateMoodboard(jobId, brief, results) {
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
+    .score-badge {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      color: #fff;
+      font-size: 14px;
+      font-weight: bold;
+      line-height: 36px;
+      text-align: center;
+      pointer-events: none;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    }
     .card-body {
       padding: 0.75rem 1rem;
     }
@@ -259,6 +311,13 @@ export async function generateMoodboard(jobId, brief, results) {
       font-size: 0.8rem;
       color: #666;
       line-height: 1.4;
+    }
+    .card-motivo {
+      font-size: 0.75rem;
+      color: #555;
+      font-style: italic;
+      margin-top: 0.3rem;
+      line-height: 1.3;
     }
 
     /* ── Footer ── */
@@ -297,6 +356,7 @@ export async function generateMoodboard(jobId, brief, results) {
   <footer class="footer">
     <span>Gerado em ${timestamp}</span>
     <span>Expira em 24 horas</span>
+    <span>${count} referência${count !== 1 ? 's' : ''} de ${sourcesCount} fonte${sourcesCount !== 1 ? 's' : ''}${avgScore != null ? ' &middot; Score médio: ' + avgScore : ''}</span>
   </footer>
 
 </body>

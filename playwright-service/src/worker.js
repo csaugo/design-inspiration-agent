@@ -6,11 +6,13 @@ import { scrapeSimple } from './scrapers/simple-scraper.js';
 import { scrapePlaywright } from './scrapers/playwright-scraper.js';
 import { selectSites } from './site-selector.js';
 import { generateMoodboard } from './moodboard/generator.js';
+import { curateResults } from './agent/curator-skill.js';
 
 const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
 const moodboardBaseUrl = process.env.MOODBOARD_BASE_URL ?? 'http://localhost:8081';
 const maxResultsPerSite = parseInt(process.env.MAX_RESULTS_PER_SITE ?? '6', 10);
 const maxTotalResults = 24;
+const curatorMinScore = parseFloat(process.env.CURATOR_MIN_SCORE ?? '45');
 
 const queue = new Bull('inspiration-jobs', redisUrl);
 
@@ -115,10 +117,29 @@ queue.process(async (job) => {
 
     const normalized = rawResults.map(normalizeResult);
     const deduped = deduplicate(normalized);
-    const results = deduped.slice(0, maxTotalResults);
+    const precurator = deduped.slice(0, maxTotalResults);
 
     console.log(
-      `[worker] job=${jobId} — total após dedup: ${deduped.length}, usando: ${results.length}`,
+      `[worker] job=${jobId} — total após dedup: ${deduped.length}, enviando ${precurator.length} para curadoria`,
+    );
+
+    // 4. Curar com Claude Vision
+    const curatedResults = await curateResults(precurator, brief);
+
+    // 5. Filtrar por CURATOR_MIN_SCORE
+    const filtered = curatedResults.filter(
+      (r) => (r.scores?.score_total ?? 100) >= curatorMinScore,
+    );
+
+    // 6. Top 12 por score_total
+    const results = filtered.slice(0, 12);
+
+    const avgScore = results.length > 0
+      ? Math.round(results.reduce((sum, r) => sum + (r.scores?.score_total ?? 0), 0) / results.length)
+      : 0;
+
+    console.log(
+      `[worker] job=${jobId} — após curadoria: ${filtered.length} acima do threshold (${curatorMinScore}), top 12: ${results.length}, score médio: ${avgScore}`,
     );
 
     const relativePath = await generateMoodboard(jobId, brief, results);
@@ -128,6 +149,7 @@ queue.process(async (job) => {
       status: 'ready',
       board_url: boardUrl,
       results_count: results.length,
+      avg_score: avgScore,
       sources: [...new Set(results.map((r) => r.source))],
       completed_at: new Date().toISOString(),
     });
