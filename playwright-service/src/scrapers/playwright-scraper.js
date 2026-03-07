@@ -39,7 +39,7 @@ export async function scrapePlaywright(site, query, maxResults = 6) {
 
     const url = site.url_busca.replace('{query}', encodeURIComponent(query));
 
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 20000 });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
 
     // Aguarda o seletor principal; falha silenciosa se não aparecer
     try {
