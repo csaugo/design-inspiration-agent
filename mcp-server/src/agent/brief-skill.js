@@ -41,7 +41,7 @@ export async function extractBrief(userQuery) {
   try {
     response = await client.messages.create({
       model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 1024,
+      max_tokens: 2048,
       system: SYSTEM_PROMPT,
       messages: [
         { role: 'user', content: userQuery },
@@ -53,12 +53,18 @@ export async function extractBrief(userQuery) {
 
   const rawText = response.content?.[0]?.text ?? '';
 
+  // Remove markdown code fences caso o modelo as inclua apesar das instruções
+  const cleaned = rawText
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```\s*$/, '')
+    .trim();
+
   let brief;
   try {
-    brief = JSON.parse(rawText);
+    brief = JSON.parse(cleaned);
   } catch {
     throw new Error(
-      `Falha ao fazer parse do JSON retornado pela API. Resposta recebida: ${rawText.slice(0, 200)}`
+      `Falha ao fazer parse do JSON retornado pela API. Resposta recebida: ${rawText.slice(0, 300)}`
     );
   }
 
