@@ -10,7 +10,7 @@
     "dev": "node --watch src/worker.js"
   },
   "dependencies": {
-    "playwright": "1.44.0",
+    "playwright": "1.58.2",
     "bull": "^4.16.5",
     "dotenv": "^17.3.1",
     "redis": "^4.7.0",
