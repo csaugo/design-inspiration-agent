@@ -45,6 +45,9 @@ const UNSPLASH_VIRTUAL = {
 
 /**
  * Calcula score de relevância de um site para um dado brief.
+ * Regra: +3 por categoria do site que bater com component/context/style do brief.
+ *        +1 por tag do site que aparecer em keywords do brief.
+ *        Bônus por tier já incluso via TIER_BONUS.
  * @param {Object} site - Objeto de site do sites.json
  * @param {Object} brief - Brief estruturado com component, context, style, keywords
  * @returns {number} score
@@ -67,13 +70,16 @@ function calcScore(site, brief) {
   const categorias = (site.categorias ?? []).map((c) => c.toLowerCase());
   const tags = (site.tags ?? []).map((t) => t.toLowerCase());
 
-  for (const term of briefTerms) {
-    if (categorias.includes(term)) score += 3;
+  // +3 por cada categoria do site que bater com component/context/style
+  for (const cat of categorias) {
+    const matches = briefTerms.some((term) => term.includes(cat) || cat.includes(term));
+    if (matches) score += 3;
   }
 
-  for (const kw of keywords) {
-    if (tags.some((tag) => tag.includes(kw) || kw.includes(tag))) score += 1;
-    if (categorias.some((cat) => cat.includes(kw) || kw.includes(cat))) score += 1;
+  // +1 por cada tag do site que aparecer em qualquer keyword
+  for (const tag of tags) {
+    const matches = keywords.some((kw) => kw.includes(tag) || tag.includes(kw));
+    if (matches) score += 1;
   }
 
   return score;
