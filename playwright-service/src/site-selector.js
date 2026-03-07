@@ -22,7 +22,7 @@ function loadSites() {
 const TIER_BONUS = {
   tier1: 5,
   tier2_simple: 3,
-  tier2_playwright: 1,
+  tier2_playwright: 3,
   tier3: 0,
 };
 
