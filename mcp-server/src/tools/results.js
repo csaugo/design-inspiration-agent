@@ -33,12 +33,13 @@ export async function getResults(jobId) {
     };
   }
 
-  if (status === 'pass1_done') {
+  if (status === 'pass1_done' || status === 'ready') {
     return {
       job_id: jobId,
       status: 'ready',
       board_url: job.board_url,
       results_count: job.results_count,
+      sources: job.sources ?? [],
       clarification_questions: job.brief?.questions ?? [],
       message: 'Moodboard pronto! Acesse a URL para visualizar e selecionar as referências.',
     };
