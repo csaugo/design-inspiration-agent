@@ -20,13 +20,9 @@ const PUBLIC_DIR = '/app/public';
 const app = express();
 app.use(cors());
 
-// A rota do MCP POST deve receber o body bruto
-app.use((req, res, next) => {
-  if (req.path === '/mcp/messages') {
-    return next();
-  }
-  express.json()(req, res, next);
-});
+// Apply express.json() ONLY to the /api routes and Moodboard endpoints, NOT globally
+// because the MCP SDK requires the raw stream on /mcp/messages
+const jsonParser = express.json();
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -135,6 +131,12 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'mcp-server' });
 });
 
+// ── API Routes (User interaction -> passes) ────────────────────────────────
+
+app.post('/api/discover', jsonParser, async (req, res) => {
+  res.json({ status: 'ok', service: 'mcp-server' });
+});
+
 app.get('/mcp', (_req, res) => {
   res.json({ status: 'ok', tools: ['search_inspiration', 'get_results', 'get_selection', 'download_moodboard', 'refine_search'] });
 });
@@ -163,6 +165,36 @@ app.get('/mcp/get_results/:jobId', async (req, res) => {
     console.error('[get_results] erro:', err);
     return res.status(500).json({ error: err.message ?? 'Erro interno.' });
   }
+});
+
+// endpoint do moodboard antigo (retrocompatibilidade opcional)
+app.post('/api/moodboard', jsonParser, async (req, res) => {
+  const { job_id: jobId, selected } = req.body ?? {}; // Assuming job_id comes from body for /api/moodboard
+
+  if (!Array.isArray(selected) || selected.length === 0) {
+    return res.status(400).json({ error: '"selected" deve ser um array não vazio de resultIds.' });
+  }
+
+  const job = await readJobFromRedis(jobId);
+  if (!job) {
+    return res.status(404).json({ error: 'Job não encontrado ou expirado.' });
+  }
+  if (job.status !== 'ready') {
+    return res.status(400).json({ error: `Job ainda não está pronto (status: ${job.status}).` });
+  }
+
+  await updateJobInRedis(jobId, {
+    selected,
+    selected_at: new Date().toISOString(),
+  });
+
+  console.log(`[select] job=${jobId} — ${selected.length} imagens selecionadas: ${selected.join(', ')}`);
+
+  return res.json({
+    job_id: jobId,
+    selected_count: selected.length,
+    message: `Seleção salva. Use get_selection no Cursor para receber as imagens.`,
+  });
 });
 
 // POST /mcp/select/:jobId — salva seleção do moodboard no Redis
@@ -242,6 +274,26 @@ app.get('/mcp/get_selection/:jobId', async (req, res) => {
   }
 
   return res.json({ job_id: jobId, selected_count: job.selected.length, images: blocks });
+});
+
+// Rota para o Passe 2 Completo (Agrupa Feedback)
+app.post('/api/refine-board', jsonParser, async (req, res) => {
+  const { job_id, feedback } = req.body ?? {};
+
+  if (!job_id || typeof job_id !== 'string' || job_id.trim() === '') {
+    return res.status(400).json({ error: 'Campo "job_id" é obrigatório.' });
+  }
+  if (!feedback || typeof feedback !== 'string' || feedback.trim().length < 5) {
+    return res.status(400).json({ error: 'Campo "feedback" é obrigatório e deve ter ao menos 5 caracteres.' });
+  }
+
+  try {
+    const result = await refineSearch(job_id.trim(), feedback.trim());
+    return res.json(result);
+  } catch (err) {
+    console.error('[refine_search] erro:', err);
+    return res.status(500).json({ error: err.message ?? 'Erro interno.' });
+  }
 });
 
 // POST /mcp/refine_search — refina busca com Vision usando seleção como âncora
