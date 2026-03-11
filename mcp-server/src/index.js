@@ -19,7 +19,14 @@ const PUBLIC_DIR = '/app/public';
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+
+// A rota do MCP POST deve receber o body bruto ignorando o express.json()
+app.use((req, res, next) => {
+  if (req.path === '/mcp/messages') {
+    return next();
+  }
+  express.json()(req, res, next);
+});
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
