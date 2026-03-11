@@ -21,7 +21,6 @@ const app = express();
 app.use(cors());
 
 // A rota do MCP POST deve receber o body bruto
-app.use('/mcp/messages', express.text({ type: '*/*' }));
 app.use((req, res, next) => {
   if (req.path === '/mcp/messages') {
     return next();
