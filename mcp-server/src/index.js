@@ -15,9 +15,33 @@ import { getResults } from './tools/results.js';
 const PORT = process.env.PORT ?? 3000;
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 const MOODBOARD_BASE_URL = process.env.MOODBOARD_BASE_URL ?? 'http://localhost:8081';
-const PUBLIC_DIR = '/app/public';
-
 const app = express();
+const httpServer = http.createServer((req, res) => {
+  // Intecept /mcp/messages at the raw socket level before Express
+  if (req.method === 'POST' && req.url.startsWith('/mcp/messages')) {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const sessionId = url.searchParams.get('sessionId');
+    const transport = mcpTransports[sessionId];
+
+    if (!transport) {
+      res.writeHead(404, {'Content-Type': 'application/json'});
+      res.end(JSON.stringify({ error: 'Sessão não encontrada.' }));
+      return;
+    }
+
+    // Pass the perfectly raw req directly to the SDK
+    transport.handlePostMessage(req, res).catch(e => {
+        console.error("Transport error:", e);
+        res.writeHead(500, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: e.message}));
+    });
+    return; // Stop Express from ever seeing this request
+  }
+  
+  // Otherwise handover to Express app
+  return app(req, res);
+});
+
 app.use(cors());
 
 // Apply express.json() ONLY to the /api routes and Moodboard endpoints, NOT globally
@@ -523,28 +547,14 @@ app.get('/mcp/sse', async (req, res) => {
   };
 });
 
-// POST /mcp/messages — recebe requisições JSON-RPC de clientes (Cursor, vscode)
-// Importante: NÃO pode haver middleware consumindo o body (ex: express.json, express.raw) antes desta rota
-app.post('/mcp/messages', async (req, res) => {
-  const sessionId = req.query.sessionId;
-  const transport = mcpTransports[sessionId];
+// As rotas de MCP POST (/mcp/messages) agora são interceptadas nativamente pelo proxy HTTP
+// antes de chegar no express.
 
-  if (!transport) {
-    return res.status(404).json({ error: 'Sessão não encontrada ou expirada.' });
-  }
-
-  try {
-    await transport.handlePostMessage(req, res);
-  } catch(e) {
-    console.error("Transport error:", e);
-    res.status(500).json({error: e.message});
-  }
-});
 
 // ── Start ──────────────────────────────────────────────────────────────────
 
-app.listen(PORT, () => {
-  console.log(`mcp-server rodando na porta ${PORT}`);
+  httpServer.listen(PORT, () => {
+    console.log(`[mcp-server] Rodando na porta ${PORT}`);
+  });
   console.log(`MCP Protocol disponível em /mcp-protocol`);
   console.log(`Tools: search_inspiration, get_results, get_selection, download_moodboard, refine_search`);
-});
