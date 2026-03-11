@@ -1,0 +1,193 @@
+Design Inspiration Agent
+Product Requirements Document
+
+Versão:
+1.0 — MVP
+Data:
+Março 2025
+Status:
+Em desenvolvimento
+IDE:
+Google IDX
+
+1. Visão Geral do Produto
+1.1 Problema
+Designers e desenvolvedores gastam tempo considerável navegando manualmente por dezenas de sites de referência visual para coletar inspiração antes de iniciar um projeto. O processo envolve busca, filtragem, screenshot, organização e curadoria — tudo de forma manual, repetitiva e fragmentada.
+
+1.2 Solução
+O Design Inspiration Agent é um agente de IA exposto via MCP (Model Context Protocol) que automatiza todo esse processo. O agente entende o pedido do usuário em linguagem natural, pesquisa nos sites de referência cadastrados, curadora os melhores resultados e retorna um pacote visual pronto para consumo — diretamente dentro do Cursor, VS Code ou Figma.
+
+1.3 Visão do Produto
+Declaração de Visão
+Permitir que qualquer designer ou desenvolvedor obtenha, em menos de 2 minutos, um pacote curado de referências visuais de alta qualidade para qualquer componente ou projeto de design — sem sair da sua IDE ou ferramenta de design.
+
+1.4 Métrica de Sucesso
+A métrica principal do produto é:
+
+KPI Principal
+Meta: 100% de aprovação do usuário nos resultados retornados pelo agente
+Como medir: Feedback explícito de aprovação/rejeição coletado no moodboard
+Estratégia: Loop de refinamento iterativo com duas camadas de inteligência
+
+2. Usuários e Contexto de Uso
+2.1 Perfil do Usuário Primário
+Atributo
+Descrição
+Perfil
+Designer / Desenvolvedor (cidadão desenvolvedor)
+Nível técnico
+Intermediário — confortável com IDEs, mas não desenvolvedor raiz
+Ferramentas principais
+Cursor, VS Code, Figma, Google IDX
+Necessidade central
+Referências visuais rápidas e curadas sem fluxo manual
+Volume de uso
+Solo — uso pessoal em projetos próprios (fase MVP)
+
+2.2 Contextos de Uso
+	•	Vibe coding no Cursor: iniciar projeto com base em referências visuais aprovadas
+	•	Design no Figma: importar moodboard de referência antes de criar componentes
+	•	Desenvolvimento no VS Code: consultar padrões visuais durante o build
+
+3. Requisitos Funcionais
+3.1 Capacidades do Agente
+ID
+Capacidade
+RF-01
+Capturar e interpretar pedido do usuário em linguagem natural
+RF-02
+Identificar o tipo de componente solicitado (landing page, ícone, nav, etc.)
+RF-03
+Rotear a busca para os sites mais relevantes da lista cadastrada
+RF-04
+Realizar buscas automatizadas nos sites (via API ou scraping com Playwright)
+RF-05
+Fazer login automático nos sites que exigem autenticação
+RF-06
+Capturar screenshots dos resultados encontrados
+RF-07
+Avaliar imagens contra o brief usando visão computacional
+RF-08
+Gerar moodboard web com resultados curados e acessível por URL
+RF-09
+Formular perguntas de clarificação após Passe 1 (nunca de mão vazia)
+RF-10
+Executar Passe 2 de busca profunda com base no feedback do usuário
+RF-11
+Disponibilizar assets originais (SVG, PNG, JPG) para download pós-aprovação
+RF-12
+Manter histórico de jobs por session para rastreabilidade
+
+3.2 MCP Tools Expostas
+Tool
+Descrição
+search_inspiration(brief)
+Inicia a busca — executa Passe 1, retorna job_id + URL do moodboard preliminar
+get_results(job_id)
+Retorna o pacote final após conclusão do Passe 2
+refine_search(job_id, feedback)
+Recebe aprovações/rejeições e opiniões para iniciar nova rodada
+
+4. Fluxo Completo do Usuário
+4.1 Diagrama de Fluxo
+Fluxo Principal — Dois Passes
+1. Usuário descreve o pedido na IDE (ex: 'Pricing section para SaaS de RH')
+2. PASSE 1 RÁPIDO — Agente interpreta, busca em 2-3 sites mais prováveis
+3. Agente retorna: URL do moodboard (4-6 opções) + 2-3 perguntas de clarificação
+4. Usuário abre moodboard no browser, visualiza opções e responde perguntas
+5. PASSE 2 PROFUNDO — Agente executa busca completa com brief enriquecido
+6. Agente retorna: URL do moodboard final ranqueado com justificativas
+7. Usuário aprova opções específicas (ex: 'quero as opções 2 e 5')
+8. Agente disponibiliza assets originais para download
+
+4.2 Interface do Moodboard
+O moodboard é uma página web estática servida pela própria VPS. Características:
+	•	URL temporária com expiração de 24 horas
+	•	Grid responsivo de cards com screenshot, site de origem e score de relevância
+	•	Seleção visual de opções (clique para marcar/desmarcar)
+	•	Botão de confirmação que retorna IDs das opções aprovadas
+	•	Funciona em qualquer browser — compatível com todos os clientes MCP
+
+5. Requisitos Não Funcionais
+Requisito
+Especificação
+Tempo de resposta — Passe 1
+< 30 segundos para retornar moodboard preliminar
+Tempo de resposta — Passe 2
+< 3 minutos para retornar moodboard completo
+Disponibilidade
+99% uptime (uso solo, VPS Hostinger)
+Isolamento
+Containers Docker independentes, sem conflito com sistemas existentes na VPS
+Segurança das credenciais
+Credenciais de sites armazenadas em variáveis de ambiente (.env), nunca em código
+Expiração de assets
+Moodboards e arquivos temporários expiram em 24 horas automaticamente
+Rastreabilidade
+Todo job registrado no Redis com status e histórico de execução
+
+6. Categorias de Sites de Referência
+Os sites são classificados em três categorias de acordo com o método de integração:
+
+Categoria
+Descrição / Exemplos
+Tier 1 — API Pública
+Sites com API oficial. Integração direta, confiável e sem scraping. Ex: Unsplash, Pexels, Iconify, Noun Project
+Tier 2 — Scraping Simples
+Sites estáticos ou SSR. Playwright consegue navegar, buscar e capturar screenshots sem autenticação
+Tier 3 — Autenticação + Scraping
+Requer login. Playwright usa credenciais fornecidas pelo usuário para autenticar antes de buscar
+
+A lista completa dos 50 sites com classificação por Tier e foco temático será fornecida pelo usuário e catalogada como configuração do agente (arquivo sites.json).
+
+7. Fases de Implementação (MVP)
+Fase 1 — Infraestrutura Base
+Configuração dos containers Docker na VPS, Redis operacional e MCP Server respondendo à tool search_inspiration com resultado estático (mock). Objetivo: validar a comunicação MCP end-to-end no Cursor/IDX.
+
+Fase 2 — Passe 1 Funcional
+Integração com os sites Tier 1 (API pública). Agente interpreta o brief e retorna screenshots reais. Moodboard web gerado e servido pelo Nginx. Loop de perguntas de clarificação ativo.
+
+Fase 3 — Passe 2 + Playwright
+Scraping com Playwright para sites Tier 2 e Tier 3. Curator skill com análise de imagem via Claude Vision. Ranqueamento e justificativas nos resultados. Refinamento via refine_search.
+
+Fase 4 — Download de Assets
+Download de assets originais (SVG, PNG, JPG) após aprovação do usuário. Gestão de expiração de arquivos temporários. Integração Figma via REST API para importação direta de frames.
+
+8. Fora de Escopo — MVP
+	•	Uso multiusuário ou autenticação de terceiros no MCP
+	•	Interface web própria para gerenciar os 50 sites (editado via arquivo de configuração)
+	•	Geração de assets originais com IA (Midjourney, DALL-E, etc.)
+	•	Integração nativa com Figma Design para importação automática de frames (Fase 4)
+	•	Métricas de uso, dashboard ou analytics
+	•	Suporte a múltiplas listas de sites por projeto
+
+9. Premissas e Dependências
+	•	O usuário possui VPS Hostinger com Docker e Easypanel já configurados
+	•	O usuário fornecerá credenciais dos sites que exigem autenticação
+	•	O usuário fornecerá a lista dos 50 sites com descrição do foco de cada um
+	•	O desenvolvimento será realizado inteiramente na IDE Google IDX
+	•	A chave de API da Anthropic (Claude) será fornecida pelo usuário para o agente
+
+10. Glossário
+Termo
+Definição
+MCP
+Model Context Protocol — protocolo aberto para expor tools de agentes de IA para clientes como Cursor e VS Code
+Brief
+Documento estruturado com o pedido do usuário, estilo, contexto e restrições
+Passe 1
+Busca rápida e especulativa em poucos sites para retornar amostra inicial
+Passe 2
+Busca completa e profunda após enriquecimento do brief com feedback do usuário
+Moodboard
+Página web temporária com grid visual de referências selecionadas pelo agente
+Curator Skill
+Módulo do agente responsável por avaliar e ranquear imagens contra o brief
+Brief Skill
+Módulo do agente responsável por entender o pedido e formular perguntas de clarificação
+Tier 1/2/3
+Classificação dos sites por método de integração: API, scraping simples, scraping com autenticação
+Vibe coding
+Fluxo de desenvolvimento onde o desenvolvedor descreve a intenção e a IA executa com autonomia
+
+Fim do documento — PRD v1.0

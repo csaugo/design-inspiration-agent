@@ -1,0 +1,425 @@
+Design Inspiration Agent
+Documento de Arquitetura Técnica
+
+Versão:
+1.0 — MVP
+Data:
+Março 2025
+IDE:
+Google IDX
+Infra:
+VPS Hostinger + Docker
+Runtime:
+Node.js 20 LTS
+
+1. Visão Geral da Arquitetura
+O sistema é composto por três containers Docker independentes que se comunicam via rede interna. Um servidor MCP expõe as tools para os clientes (Cursor, VS Code, Figma). Um serviço de filas Redis gerencia os jobs de busca de forma assíncrona. Um serviço Playwright executa as buscas e capturas nos sites de referência.
+
+Diagrama de Componentes
+[Cliente MCP] Cursor / VS Code / Figma — chama as tools via stdio ou HTTP
+     ↓ 
+[mcp-server] Container Node.js — orquestra o agente, expõe as 3 tools MCP
+     ↓ enfileira jobs ↓ publica resultados
+[redis] Container Redis — fila de jobs + cache de resultados + session store
+     ↓ consome fila 
+[playwright-service] Container Node.js — executa buscas, scraping e screenshots
+     ↓ escreve arquivos 
+[nginx / volume compartilhado] Serve moodboards HTML + assets para o usuário via browser
+
+1.1 Princípios de Design
+	•	Assíncrono por padrão: nenhuma tool MCP bloqueia aguardando scraping — tudo via fila Redis
+	•	Stateless nos containers: estado de cada job armazenado exclusivamente no Redis
+	•	Isolamento total: os 3 containers não compartilham código, apenas a rede Docker interna
+	•	Credenciais seguras: todas as senhas e API keys via variáveis de ambiente, nunca em código
+	•	Fácil de debugar: cada container gera logs independentes acessíveis via Easypanel
+
+2. Especificação dos Containers
+2.1 Container: mcp-server
+Atributo
+Valor
+Imagem base
+node:20-alpine
+Porta exposta
+3000 (HTTP interno) — comunicação MCP via stdio ou HTTP
+Responsabilidade
+Expor as 3 tools MCP, orquestrar o agente, enfileirar jobs no Redis
+Dependências principais
+Node.js 20, @anthropic-ai/sdk, bull (fila), express
+Volume
+Nenhum (stateless)
+Variáveis de ambiente
+ANTHROPIC_API_KEY, REDIS_URL, MOODBOARD_BASE_URL
+
+2.2 Container: redis
+Atributo
+Valor
+Imagem base
+redis:7-alpine
+Porta exposta
+6379 (apenas rede interna — nunca exposta ao exterior)
+Responsabilidade
+Fila de jobs (Bull), cache de resultados, session store
+Volume
+redis_data (persistência em disco)
+Configuração
+maxmemory 256mb, maxmemory-policy allkeys-lru
+
+2.3 Container: playwright-service
+Atributo
+Valor
+Imagem base
+mcr.microsoft.com/playwright:v1.44.0-jammy
+Porta exposta
+Nenhuma (consome fila Redis diretamente — worker, não servidor HTTP)
+Responsabilidade
+Consumir jobs da fila, executar buscas, fazer screenshots, salvar assets
+Volume
+moodboard_data (compartilhado com nginx para servir arquivos)
+Variáveis de ambiente
+REDIS_URL, SITES_CONFIG_PATH, CREDENTIALS_PATH
+Memória recomendada
+512MB reservado, limite 1GB (Chromium headless por instância)
+
+3. Docker Compose — Arquivo Completo
+Este é o arquivo docker-compose.yml que define toda a infraestrutura. Cole-o na raiz do projeto no Google IDX:
+
+version: '3.9'
+
+networks:
+  agent-net:
+    driver: bridge
+
+volumes:
+  redis_data:
+  moodboard_data:
+
+services:
+
+  # ── 1. MCP SERVER ──────────────────────────────────────────
+  mcp-server:
+    build: ./mcp-server
+    container_name: dia-mcp-server
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    networks: [agent-net]
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - REDIS_URL=redis://redis:6379
+      - MOODBOARD_BASE_URL=${MOODBOARD_BASE_URL}
+      - NODE_ENV=production
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ── 2. REDIS ────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: dia-redis
+    restart: unless-stopped
+    networks: [agent-net]
+    volumes:
+      - redis_data:/data
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ── 3. PLAYWRIGHT SERVICE ───────────────────────────────────
+  playwright-service:
+    build: ./playwright-service
+    container_name: dia-playwright
+    restart: unless-stopped
+    networks: [agent-net]
+    volumes:
+      - moodboard_data:/app/public
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - SITES_CONFIG_PATH=/app/config/sites.json
+      - CREDENTIALS_PATH=/app/config/credentials.json
+    depends_on:
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # ── 4. NGINX (serve moodboards) ─────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: dia-nginx
+    restart: unless-stopped
+    ports:
+      - '8080:80'
+    networks: [agent-net]
+    volumes:
+      - moodboard_data:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+4. Estrutura de Arquivos do Projeto
+Estrutura completa de diretórios para o Google IDX:
+
+design-inspiration-agent/
+├── docker-compose.yml
+├── .env                        # Variáveis de ambiente (nunca commitar!)
+├── .env.example                # Template do .env para referência
+├── nginx.conf                  # Configuração do Nginx
+│
+├── mcp-server/                 # Container 1
+│   ├── Dockerfile
+│   ├── package.json
+│   └── src/
+│       ├── index.js            # Entrypoint — inicializa o servidor MCP
+│       ├── tools/
+│       │   ├── search.js       # Tool: search_inspiration(brief)
+│       │   ├── results.js      # Tool: get_results(job_id)
+│       │   └── refine.js       # Tool: refine_search(job_id, feedback)
+│       ├── agent/
+│       │   ├── orchestrator.js # Orquestrador principal
+│       │   ├── brief-skill.js  # Skill de entendimento do pedido
+│       │   └── curator-skill.js# Skill de curadoria de imagens
+│       └── queue/
+│           └── producer.js     # Enfileira jobs no Redis
+│
+├── playwright-service/         # Container 3
+│   ├── Dockerfile
+│   ├── package.json
+│   └── src/
+│       ├── worker.js           # Consome fila e despacha jobs
+│       ├── scrapers/
+│       │   ├── api-scraper.js  # Tier 1: sites com API pública
+│       │   └── browser-scraper.js # Tier 2/3: Playwright headless
+│       └── moodboard/
+│           └── generator.js   # Gera HTML do moodboard
+│
+└── config/
+    ├── sites.json             # Lista dos 50 sites categorizados
+    └── credentials.json       # Credenciais dos sites (criptografado)
+
+5. Fluxo de Dados Detalhado
+5.1 Passe 1 — Busca Rápida
+Sequência de Eventos — Passe 1
+1. Cliente MCP chama search_inspiration({ query: 'pricing section SaaS RH' })
+2. mcp-server recebe a call, invoca brief-skill para interpretar o pedido
+3. brief-skill gera brief estruturado: { component, style, context, anti_preferences }
+4. mcp-server seleciona 2-3 sites Tier 1 mais relevantes do sites.json
+5. mcp-server enfileira job no Redis: { job_id, brief, sites, pass: 1 }
+6. mcp-server retorna imediatamente: { job_id, status: 'queued' } ao cliente
+7. playwright-service consome o job, executa buscas em paralelo
+8. Screenshots salvas em /app/public/{job_id}/pass1/
+9. curator-skill avalia cada screenshot contra o brief (Claude Vision)
+10. moodboard gerado em /app/public/{job_id}/board-pass1.html
+11. Redis atualizado: { status: 'pass1_done', board_url, clarification_questions }
+
+5.2 Passe 2 — Busca Profunda
+Sequência de Eventos — Passe 2
+1. Cliente chama refine_search({ job_id, feedback: 'prefiro minimalista, sem gradientes' })
+2. mcp-server enriquece o brief original com o feedback recebido
+3. Todos os sites relevantes da categoria são selecionados (pode ser 10-15 sites)
+4. Job enfileirado no Redis: { job_id, brief_v2, sites, pass: 2 }
+5. playwright-service executa buscas em paralelo (máx 3 instâncias Chromium)
+6. curator-skill avalia todos os resultados, gera scores de 0-100
+7. Top 8-12 resultados selecionados, ranqueados e justificados
+8. Moodboard final gerado com score visual e justificativa por item
+9. Status Redis atualizado: { status: 'complete', final_board_url }
+
+6. Agente: Prompts e Skills
+6.1 Brief Skill — System Prompt
+Este é o prompt que define o comportamento da Brief Skill. Ele é passado como system prompt na chamada à API da Anthropic:
+
+Você é um especialista em design visual com profundo conhecimento de
+padrões de UI/UX. Sua função é analisar pedidos de inspiração de design
+e transformá-los em um brief estruturado preciso.
+
+Dado um pedido em linguagem natural, você deve extrair e estruturar:
+
+1. COMPONENTE: Qual elemento de UI está sendo buscado
+   (ex: hero section, pricing table, nav bar, card, modal, form)
+
+2. CONTEXTO: Setor/nicho do projeto
+   (ex: SaaS B2B, fintech, saúde, e-commerce, portfolio)
+
+3. ESTILO VISUAL: Preferências estéticas detectadas ou inferidas
+   (ex: minimalista, bold/expressivo, glassmorphism, flat, dark mode)
+
+4. MARCAS DE REFERÊNCIA: Se mencionadas
+   (ex: 'estilo Linear', 'como Notion', 'similar ao Stripe')
+
+5. RESTRIÇÕES: O que definitivamente NÃO usar
+   (ex: sem gradientes, sem animações pesadas, sem Stock photos)
+
+6. PERGUNTAS DE CLARIFICAÇÃO: Máximo 3 perguntas que, se respondidas,
+   melhorariam significativamente a qualidade dos resultados.
+   Formule perguntas curtas, diretas e com opções quando possível.
+
+Retorne APENAS um JSON válido, sem nenhum texto adicional:
+{
+  'component': string,
+  'context': string,
+  'style': string[],
+  'references': string[],
+  'anti_preferences': string[],
+  'questions': string[]
+}
+
+6.2 Curator Skill — System Prompt
+Prompt da Curator Skill, responsável por avaliar e ranquear imagens contra o brief:
+
+Você é um art director sênior com 15 anos de experiência em produto digital.
+Sua função é avaliar referências visuais e julgar sua adequação a um brief.
+
+Para cada imagem fornecida, avalie em uma escala de 0 a 100:
+
+- RELEVÂNCIA (0-30): O componente exibido bate com o que foi pedido?
+- ESTILO (0-30): O estilo visual alinha com as preferências do brief?
+- QUALIDADE (0-20): A execução é polida, profissional e bem acabada?
+- APLICABILIDADE (0-20): É realista implementar algo similar no projeto?
+
+SCORE TOTAL = soma das quatro dimensões (máx 100)
+
+Descarte automaticamente (score 0) imagens que:
+- Violam alguma restrição do brief (anti_preferences)
+- São de baixa qualidade ou resolução insuficiente
+- Não correspondem ao componente solicitado
+
+Retorne APENAS um JSON válido:
+{
+  'results': [
+    {
+      'image_id': string,
+      'score': number,
+      'breakdown': { relevance, style, quality, applicability },
+      'justification': string  // 1-2 frases explicando a avaliação
+      'highlights': string[]   // 2-3 pontos fortes específicos
+    }
+  ]
+}
+
+7. Configuração dos Sites — sites.json
+Estrutura do arquivo de configuração dos sites. Este arquivo é o 'cérebro' do roteamento do agente:
+
+{
+  'sites': [
+    {
+      'id': 'dribbble',
+      'name': 'Dribbble',
+      'url': 'https://dribbble.com',
+      'tier': 3,
+      'integration': 'playwright',
+      'auth_required': true,
+      'credentials_key': 'dribbble',
+      'focus': ['ui_components', 'landing_pages', 'mobile', 'icons'],
+      'search_url': 'https://dribbble.com/search/{query}',
+      'result_selector': '.shot-thumbnail',
+      'priority': 9
+    },
+    {
+      'id': 'unsplash',
+      'name': 'Unsplash',
+      'url': 'https://unsplash.com',
+      'tier': 1,
+      'integration': 'api',
+      'auth_required': false,
+      'credentials_key': null,
+      'focus': ['photography', 'backgrounds', 'textures'],
+      'api_endpoint': 'https://api.unsplash.com/search/photos',
+      'priority': 7
+    }
+  ]
+}
+
+7.1 Atributos de Configuração
+Atributo
+Descrição
+id
+Identificador único do site (snake_case)
+tier
+1=API pública, 2=scraping simples, 3=scraping com autenticação
+focus
+Array de categorias: ui_components, landing_pages, icons, design_systems, etc.
+priority
+Peso de 1-10 usado pelo roteador para priorizar sites nas buscas
+result_selector
+Seletor CSS do elemento de resultado (apenas Tier 2 e 3)
+credentials_key
+Chave no credentials.json para buscar login/senha (apenas Tier 3)
+
+8. Variáveis de Ambiente — .env
+Arquivo .env completo para configurar antes do primeiro deploy. Nunca commitar este arquivo no Git:
+
+# ── ANTHROPIC ───────────────────────────────────────────────────
+ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# ── REDIS ───────────────────────────────────────────────────────
+REDIS_URL=redis://redis:6379
+
+# ── MOODBOARD ───────────────────────────────────────────────────
+# URL pública do seu domínio ou IP da VPS com a porta do nginx
+MOODBOARD_BASE_URL=http://SEU_IP_VPS:8080
+
+# ── SERVIDOR MCP ────────────────────────────────────────────────
+MCP_PORT=3000
+NODE_ENV=production
+
+# ── CONFIGURAÇÕES DO AGENTE ─────────────────────────────────────
+PASS1_MAX_SITES=3          # Quantos sites buscar no Passe 1
+PASS2_MAX_SITES=15         # Máximo de sites no Passe 2
+MAX_RESULTS_PER_SITE=6     # Screenshots por site por busca
+CURATOR_MIN_SCORE=60       # Score mínimo para incluir no moodboard
+MOODBOARD_EXPIRY_HOURS=24  # Horas até expirar arquivos temporários
+
+# ── APIs DE SITES TIER 1 ────────────────────────────────────────
+UNSPLASH_ACCESS_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+PEXELS_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+ICONIFY_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+⚠  Nunca commitar o arquivo .env no Git. Adicione-o ao .gitignore imediatamente após criar o repositório. Use .env.example como template sem os valores reais.
+
+9. Configuração do Cliente MCP
+9.1 Cursor — mcp.json
+Adicione este bloco ao arquivo de configuração do Cursor (~/.cursor/mcp.json):
+
+{
+  'mcpServers': {
+    'design-inspiration-agent': {
+      'url': 'http://SEU_IP_VPS:3000/mcp',
+      'description': 'Busca referências visuais de design nos seus sites favoritos'
+    }
+  }
+}
+
+9.2 VS Code — settings.json
+Para habilitar o MCP no VS Code (com extensão GitHub Copilot ou similar):
+
+{
+  'mcp.servers': {
+    'design-inspiration': {
+      'url': 'http://SEU_IP_VPS:3000/mcp'
+    }
+  }
+}
+
+10. Plano de Implementação por Fases
+Cada fase entrega valor independente e serve de base para a próxima. O objetivo é ter algo funcionando no fim de cada fase.
+
+Fase
+Entregável / Critério de Sucesso
+Fase 1 — Setup
+docker-compose up roda sem erros. Redis responde. MCP Server online. Tool search_inspiration retorna mock fixo no Cursor.
+Fase 2 — Passe 1 Real
+Agente busca em 1 site Tier 1 (Unsplash). Moodboard HTML gerado e acessível por URL. Brief Skill interpretando pedidos.
+Fase 3 — Playwright
+Playwright buscando em 2-3 sites Tier 2. Screenshots reais no moodboard. Fila Redis com jobs assíncronos funcionando.
+Fase 4 — Curadoria
+Curator Skill avaliando imagens com score. Moodboard ranqueado com justificativas. Perguntas de clarificação ativas.
+Fase 5 — Passe 2 Full
+refine_search ativo. Passe 2 com 10+ sites. Loop completo: pedido → Passe 1 → feedback → Passe 2 → aprovação.
+Fase 6 — Download Assets
+Assets originais disponíveis após aprovação. Limpeza automática de arquivos expirados. Tier 3 (autenticação) ativo.
+
+Fim do documento — Arquitetura Técnica v1.0

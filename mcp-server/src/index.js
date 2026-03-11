@@ -7,8 +7,7 @@ import express from 'express';
 import cors from 'cors';
 import { createClient } from 'redis';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { z } from 'zod';
 import { searchInspiration, refineSearch } from './tools/search.js';
 import { getResults } from './tools/results.js';
@@ -450,60 +449,30 @@ function createMcpServer() {
 
   return server;
 }
+app.get('/mcp/sse', async (req, res) => {
+  const transport = new SSEServerTransport('/mcp/messages', res);
+  const server = createMcpServer();
+  
+  await server.connect(transport);
+  
+  mcpTransports[transport.sessionId] = transport;
+  console.log(`[mcp-protocol] sessão SSE iniciada: ${transport.sessionId}`);
 
-app.post('/mcp-protocol', async (req, res) => {
-  const sessionId = req.headers['mcp-session-id'];
-
-  if (sessionId && mcpTransports[sessionId]) {
-    await mcpTransports[sessionId].handleRequest(req, res, req.body);
-    return;
-  }
-
-  if (!sessionId && isInitializeRequest(req.body)) {
-    const transport = new StreamableHTTPServerTransport({
-      sessionIdGenerator: () => randomUUID(),
-      onsessioninitialized: (id) => {
-        mcpTransports[id] = transport;
-        console.log(`[mcp-protocol] sessão iniciada: ${id}`);
-      },
-    });
-
-    transport.onclose = () => {
-      if (transport.sessionId) {
-        delete mcpTransports[transport.sessionId];
-        console.log(`[mcp-protocol] sessão encerrada: ${transport.sessionId}`);
-      }
-    };
-
-    const server = createMcpServer();
-    await server.connect(transport);
-    await transport.handleRequest(req, res, req.body);
-    return;
-  }
-
-  res.status(400).json({
-    jsonrpc: '2.0',
-    error: { code: -32000, message: 'Sessão inválida ou requisição não reconhecida.' },
-    id: null,
-  });
+  transport.onclose = () => {
+    delete mcpTransports[transport.sessionId];
+    console.log(`[mcp-protocol] sessão SSE encerrada: ${transport.sessionId}`);
+  };
 });
 
-app.get('/mcp-protocol', async (req, res) => {
-  const sessionId = req.headers['mcp-session-id'];
-  if (sessionId && mcpTransports[sessionId]) {
-    await mcpTransports[sessionId].handleRequest(req, res);
-    return;
-  }
-  res.status(400).json({ error: 'Sessão não encontrada.' });
-});
+app.post('/mcp/messages', async (req, res) => {
+  const sessionId = req.query.sessionId;
+  const transport = mcpTransports[sessionId];
 
-app.delete('/mcp-protocol', async (req, res) => {
-  const sessionId = req.headers['mcp-session-id'];
-  if (sessionId && mcpTransports[sessionId]) {
-    await mcpTransports[sessionId].handleRequest(req, res);
-    return;
+  if (!transport) {
+    return res.status(404).json({ error: 'Sessão não encontrada ou expirada.' });
   }
-  res.status(400).json({ error: 'Sessão não encontrada.' });
+
+  await transport.handlePostMessage(req, res);
 });
 
 // ── Start ──────────────────────────────────────────────────────────────────
