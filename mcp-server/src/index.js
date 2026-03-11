@@ -15,33 +15,8 @@ import { getResults } from './tools/results.js';
 const PORT = process.env.PORT ?? 3000;
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
 const MOODBOARD_BASE_URL = process.env.MOODBOARD_BASE_URL ?? 'http://localhost:8081';
+
 const app = express();
-const httpServer = http.createServer((req, res) => {
-  // Intecept /mcp/messages at the raw socket level before Express
-  if (req.method === 'POST' && req.url.startsWith('/mcp/messages')) {
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    const sessionId = url.searchParams.get('sessionId');
-    const transport = mcpTransports[sessionId];
-
-    if (!transport) {
-      res.writeHead(404, {'Content-Type': 'application/json'});
-      res.end(JSON.stringify({ error: 'Sessão não encontrada.' }));
-      return;
-    }
-
-    // Pass the perfectly raw req directly to the SDK
-    transport.handlePostMessage(req, res).catch(e => {
-        console.error("Transport error:", e);
-        res.writeHead(500, {'Content-Type': 'application/json'});
-        res.end(JSON.stringify({error: e.message}));
-    });
-    return; // Stop Express from ever seeing this request
-  }
-  
-  // Otherwise handover to Express app
-  return app(req, res);
-});
-
 app.use(cors());
 
 // Apply express.json() ONLY to the /api routes and Moodboard endpoints, NOT globally
@@ -547,13 +522,31 @@ app.get('/mcp/sse', async (req, res) => {
   };
 });
 
-// As rotas de MCP POST (/mcp/messages) agora são interceptadas nativamente pelo proxy HTTP
-// antes de chegar no express.
+app.use('/mcp/messages', express.raw({ type: '*/*', limit: '10mb' }));
 
+app.post('/mcp/messages', async (req, res) => {
+  const sessionId = req.query.sessionId;
+  const transport = mcpTransports[sessionId];
+
+  if (!transport) {
+    return res.status(404).json({ error: 'Sessão não encontrada ou expirada.' });
+  }
+
+  try {
+    // A API do SDK mcp tem um bug consumindo requisições HTTP do Node via proxy Nginx (InternalServerError: stream is not readable)
+    // Para resolver isso nós mesmos fazemos o parse do body com express.raw e chamamos o método interno `handleMessage` que processa JSON-RPC.
+    const msg = JSON.parse(req.body.toString('utf8'));
+    await transport.handleMessage(msg);
+    res.status(202).end(); // O SDK Server envia respostas pelo Server-Sent Event connection então o POST é só aceito
+  } catch(e) {
+    console.error("Transport POST message error:", e);
+    res.status(500).json({error: e.message});
+  }
+});
 
 // ── Start ──────────────────────────────────────────────────────────────────
 
-  httpServer.listen(PORT, () => {
+  app.listen(PORT, () => {
     console.log(`[mcp-server] Rodando na porta ${PORT}`);
   });
   console.log(`MCP Protocol disponível em /mcp-protocol`);
