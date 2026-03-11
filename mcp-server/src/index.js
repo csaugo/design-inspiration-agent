@@ -523,6 +523,10 @@ app.get('/mcp/sse', async (req, res) => {
   };
 });
 
+// Use raw body explicit parsing only for the MCP routes
+app.use('/mcp/messages', express.raw({ type: '*/*' }));
+
+// POST /mcp/messages — recebe requisições JSON-RPC de clientes (Cursor, vscode)
 app.post('/mcp/messages', async (req, res) => {
   const sessionId = req.query.sessionId;
   const transport = mcpTransports[sessionId];
@@ -531,7 +535,28 @@ app.post('/mcp/messages', async (req, res) => {
     return res.status(404).json({ error: 'Sessão não encontrada ou expirada.' });
   }
 
-  await transport.handlePostMessage(req, res);
+  try {
+    // mcp-sdk expects a readable stream, but express.raw() puts the buffer in req.body.
+    // We recreate a dummy readable stream that yields the body and bind necessary methods.
+    const { Readable } = await import('node:stream');
+    const simulatedReq = new Readable({
+      read() {
+        if (req.body && req.body.length > 0) {
+            this.push(req.body);
+        }
+        this.push(null);
+      }
+    });
+
+    simulatedReq.headers = req.headers;
+    simulatedReq.method = req.method;
+    simulatedReq.url = req.url;
+
+    await transport.handlePostMessage(simulatedReq, res);
+  } catch(e) {
+    console.error("Transport error:", e);
+    res.status(500).json({error: e.message});
+  }
 });
 
 // ── Start ──────────────────────────────────────────────────────────────────
